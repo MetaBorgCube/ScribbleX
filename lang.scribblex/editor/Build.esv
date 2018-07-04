@@ -1,0 +1,6 @@
+module Build
+
+menus
+  
+  menu: "Generate" (openeditor)
+  	action: "Global-to-local" = generate-global-to-local (source)

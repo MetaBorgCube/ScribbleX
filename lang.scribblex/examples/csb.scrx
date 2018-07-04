@@ -1,0 +1,15 @@
+module CSB;
+
+global protocol CSB(role C, role S, role B) {
+  rec r {
+    reqPrice(String) from C to S;
+    priceInfo(p : Int) from S to C;
+    choice at C {
+      continue r;
+    } or {
+      priceInfo(p) from S to B;
+      reqTransfer(p) from C to B;
+      ackTransfer(p) from B to S;
+    }
+  }
+}

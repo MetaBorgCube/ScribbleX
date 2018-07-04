@@ -1,0 +1,88 @@
+module ScribbleX
+
+imports
+  
+  Common
+
+context-free start-symbols
+  
+  Start
+
+context-free syntax
+  
+  Start.Module = <module <ID>;
+
+<Protocol>>
+
+/////////////////////
+// GLOBAL PROTOCOL //
+/////////////////////
+
+  Protocol.Global = <global protocol <ID>(<{Role ","}*>) {
+  <InteractionG>
+}>
+
+  InteractionG.Message  = <<ID>(<{Payload ","}*>) from <ID> to <ID>;
+<InteractionG?>>
+  
+  InteractionG.Choice   = <choice at <ID> {
+  <InteractionG>
+} <OrChoiceG*>>
+  
+  InteractionG.Rec      = <rec <ID> {
+  <InteractionG>
+}>
+  
+  InteractionG.Continue = <continue <ID>;>
+  
+  Role.Role = <role <ID>>
+  
+  OrChoiceG.Or = <or {
+  <InteractionG>
+}>
+
+////////////////////
+// LOCAL PROTOCOL //
+////////////////////
+
+  Protocol.Local = <local protocol <ID>(<{Role ","}*>) {
+  <InteractionL?>
+}>
+  
+  InteractionL.From     = <<ID>(<{Payload ","}*>) from <ID>;
+<InteractionL?>>
+  
+  InteractionL.To       = <<ID>(<{Payload ","}*>) to <ID>;
+<InteractionL?>>
+  
+  InteractionL.Choice   = <choice at <ID> {
+  <InteractionL?>
+} <OrChoiceL*>>
+  
+  InteractionL.Rec      = <rec <ID> {
+  <InteractionL?>
+}>
+  
+  InteractionL.Continue = <continue <ID>;>
+
+  OrChoiceL.Or = <or {
+  <InteractionL?>
+}>
+/////////////
+// PAYLOAD //
+/////////////
+
+  Payload.Ston = <<ID> : <Type>>
+  Payload.Type = Type
+
+///////////
+// TYPES //
+///////////
+
+  Type.Int = <Int>
+  Type.String = <String>
+  Type.Id = ID
+  
+lexical syntax
+
+  ID = "Int" | "String" {reject}

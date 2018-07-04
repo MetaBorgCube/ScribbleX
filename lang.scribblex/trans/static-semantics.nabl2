@@ -1,0 +1,13 @@
+module static-semantics
+
+imports
+
+  signatures/-
+
+rules
+
+  init ^ (s) := new s.
+
+  [[ Module(_,_) ^ (s) ]] :=
+    true.
+

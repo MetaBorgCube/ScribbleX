@@ -1,0 +1,158 @@
+module global-to-local
+
+language ScribbleX
+
+test basic 2-actor [[
+module Test;
+
+global protocol test(role A, role B) {
+  m(Int) from A to B;
+}
+]] run test-global-to-local to SUCCEEDS()
+
+test basic 2-actor with free singleton type variable [[
+module Test;
+
+global protocol test(role A, role B) {
+  m(x) from A to B;
+}
+]] run test-global-to-local to FAILS()
+
+test self-messaging [[
+module Test;
+
+global protocol test(role A) {
+  m() from A to A;
+}
+]] run test-global-to-local to FAILS()
+
+test 3-actor [[
+module Test3;
+
+global protocol test3(role A, role B, role C) {
+  asd(Int) from A to B;
+}
+]] run test-global-to-local to SUCCEEDS()
+
+test 3-actor [[
+module Test3;
+
+global protocol test3(role A, role B, role C) {
+  asd(Int) from A to B;
+  dsf(String) from B to C;
+}
+]] run test-global-to-local to SUCCEEDS()
+
+test basic singleton [[
+module Ston;
+
+global protocol ston(role X, role Y) {
+  ping(x : Int) from X to Y;
+  pong(x) from Y to X;
+}
+]] run test-global-to-local to SUCCEEDS()
+
+test singleton3 [[
+module Ston3;
+
+global protocol test(role A, role B, role C) {
+  foo(x : String) from A to B;
+  bar(x) from B to C;
+}
+]] run test-global-to-local to SUCCEEDS()
+
+
+test bad singleton [[
+module Ston3;
+
+global protocol test(role A, role B, role C) {
+  foo(x : String) from A to B;
+  bar(x) from C to B;
+}
+]] run test-global-to-local to FAILS()
+
+test cannot project local protocol [[
+module Bad_A;
+
+local protocol bad(role A, role B) {
+  test(Int) to A;
+}
+]] run test-global-to-local to FAILS()
+
+
+test black hole infinite recursion [[
+module test;
+
+global protocol test(role A) {
+  rec r { continue r; }
+}
+]] run test-global-to-local to SUCCEEDS()
+
+test productive infinite recursion [[
+module test;
+
+global protocol test(role A, role B) {
+  rec r { m() from A to B; continue r; }
+}
+]] run test-global-to-local to SUCCEEDS()
+
+test bad continue label [[
+module test;
+
+global protocol test(role A, role B) {
+  rec r { continue s; }
+}
+]] run test-global-to-local to FAILS()
+
+test choice [[
+module Choice;
+
+global protocol choose(role A, role B, role C) {
+  choice at A {
+    magic(Int) from A to B;
+  } or {
+    magic(Int) from A to C;
+  }
+}
+]] run test-global-to-local to SUCCEEDS()
+
+test CSB [[
+module CSB;
+
+global protocol CSB(role C, role S, role B) {
+  rec r {
+    reqPrice(String) from C to S;
+    priceInfo(Int) from S to C;
+    choice at C {
+      reject() from C to S;
+      continue r;
+    } or {
+      accept() from C to S;
+      priceInfo(Int) from S to B;
+      reqTransfer(Int) from C to B;
+      ackTransfer(Int) from B to S;
+    }
+  }
+}
+]] run test-global-to-local to SUCCEEDS()
+
+
+test CSB with invariants [[
+module CSB;
+
+global protocol CSB(role C, role S, role B) {
+  rec r {
+    reqPrice(String) from C to S;
+    priceInfo(p : Int) from S to C;
+    choice at C {
+      reject() from C to S;
+      continue r;
+    } or {
+      accept() from C to S;
+      priceInfo(p) from S to B;
+      reqTransfer(p) from C to B;
+      ackTransfer(p) from B to S;
+    }
+  }
+}
+]] run test-global-to-local to SUCCEEDS()

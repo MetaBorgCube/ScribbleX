@@ -1,0 +1,38 @@
+module scribblex
+
+imports
+  
+  completion/completion
+  pp
+  outline
+  analysis
+  global-to-local
+
+rules // Debugging
+  
+  debug-show-aterm:
+    (node, _, _, path, project-path) -> (filename, result)
+    with
+      filename := <guarantee-extension(|"aterm")> path
+    ; result   := node
+
+	generate-global-to-local: 
+    (node, a, ast, path, project-path) -> None()
+		with 
+			filename := <guarantee-extension(|"scrx")> path
+		; <global-to-local-all-module; debug; map(\ (mod, role) -> <write-local> (path, role, mod) \)> ast
+
+	write-local:
+	  (path, role, mod) -> None()
+		with
+			filename := <new-role-file-name> (path, role, "scrx")
+		;	file := <fopen> (filename, "w")
+		; <fprintnl> (file, [<pp-ScribbleX-string> mod])
+		;	<fclose> file
+
+	// Creates new file name based on existing filename appended by _actor
+	new-role-file-name: (path, role, extension) -> (file)
+		with
+			(filename,_)  := <split-at-dot> (<base-filename> path)
+		;	filepath			:= <concat-strings> [<dirname> path, "/", filename, "_", role]
+		; file					:= <guarantee-extension(|extension)> filepath
