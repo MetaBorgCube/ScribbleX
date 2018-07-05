@@ -4,6 +4,7 @@ imports
   signatures/ScribbleX-sig
   signatures/Scribble-sig
   pp
+  roles-of
   
 rules
 
@@ -25,16 +26,73 @@ rules
 
   lower:
     (Message(mname, payload, from, to, i_next), psi) ->
-      Message(mname, payload, from, to, i_next)
+      Message(mname, payload', from, to, <lower-opt> (i_next, <concat> [psi', psi]))
+    where
+      (payload', psi') := <foldr(!([], []), union-lower-payload(|psi))> payload
   
   lower:
     (Choice(role, interaction, ors), psi) ->
-      Choice(role, interaction, ors)
+      Choice(role, interaction', ors')
+    where
+      rs0          := <roles-of> interaction
+    ; rsi          := <foldr(![], \ (Or(i), rs_acc) -> <conc> (<roles-of> i, rs_acc) \)> ors
+    ; rs           := <conc; remove-all(?role); make-set> (rs0, rsi)
+    ; interaction' := <add-broadcast(|0)> (role, <lower> (interaction, psi), rs)
+    ; (_, ors')    := <foldr(!(1, []), \ (Or(i), (n, acc)) -> (<inc> n, [Or(<add-broadcast(|n)> (role, <lower> (i, psi), rs))|acc]) \)> ors
   
   lower:
     (Rec(x, interaction), psi) ->
-      Rec(x, interaction)
+      Rec(x, <lower> (interaction, psi))
   
   lower:
     (Continue(x), psi) ->
       Continue(x)
+
+rules
+
+  lower-opt:
+    (Some(i), psi) ->
+      Some(<lower> (i, psi))
+  
+  lower-opt:
+    (None(), psi) ->
+      None()
+ 
+rules
+  
+  union-lower-payload(|psi):
+    (q, (payload', psi')) ->
+      ([q'|payload'], <conc> (psi'', psi'))
+    where
+      (q', psi'') := <lower-payload> (q, psi)
+
+rules
+
+  lower-payload:
+    (Ston(x, t), psi) ->
+      (t', [(x,t')|psi'])
+    where
+      (t', psi') := <lower-payload> (Type(t), psi)
+  
+  lower-payload:
+    (Type(t), psi) ->
+      (Type(t), [])
+    where
+      <elem> (t, [Int(), String()])
+  
+  lower-payload:
+    (Type(Id(x)), psi) ->
+      (<lookup> (x, psi), [])
+  
+  lower-payload:
+    (Type(Id(x)), psi) ->
+      <err-msg(|<concat-strings> ["Cannot lower free type identifier: ", x]); fail>
+    where
+      not(<lookup> (x, psi))
+
+rules
+
+  add-broadcast(|n):
+    (role_from, i, rs) ->
+      <foldr(!i, \ (role_to, i_acc) -> 
+        Message(<concat-strings> ["c", role_from, role_to, <int-to-string> n], [], role_from, role_to, Some(i_acc)) \)> rs
