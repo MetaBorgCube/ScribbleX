@@ -3,6 +3,7 @@ module global-to-local
 imports
   signatures/ScribbleX-sig
   pp
+  roles-of
 
 signature
 
@@ -45,21 +46,21 @@ rules
       Some(To(mname, payload', to, <project-opt> (i_next, r, <conc> (gamma', gamma), <conc> (psi', psi), rho)))
     where
       <eq> (r, from); not(<eq> (r, to))
-    ; (payload', gamma', psi') := <foldr(!([], [], []), union-payload(|r, Send(), gamma, psi))> payload
+    ; (payload', gamma', psi') := <foldr(!([], [], []), union-project-payload(|r, Send(), gamma, psi))> payload
   
   project:
     (Message(mname, payload, from, to, i_next), r, gamma, psi, rho) ->
       Some(From(mname, payload', from, <project-opt> (i_next, r, <conc> (gamma', gamma), <conc> (psi', psi), rho)))
     where
       <eq> (r, to); not(<eq> (r, from))
-    ; (payload', gamma', psi') := <foldr(!([], [], []), union-payload(|r, Recv(), gamma, psi))> payload
+    ; (payload', gamma', psi') := <foldr(!([], [], []), union-project-payload(|r, Recv(), gamma, psi))> payload
   
   project:
     (Message(mname, payload, from, to, i_next), r, gamma, psi, rho) ->
       <project-opt> (i_next, r, <conc> (gamma', gamma), <conc> (psi', psi), rho)
     where
       not(<eq> (r, to)); not(<eq> (r, from))
-    ; (_, gamma', psi') := <foldr(!([], [], []), union-payload(|r, Othr(), gamma, psi))> payload
+    ; (_, gamma', psi') := <foldr(!([], [], []), union-project-payload(|r, Othr(), gamma, psi))> payload
 
   project:
     (Message(mname, payload, from, to, i_next), r, gamma, psi, rho) ->
@@ -102,18 +103,9 @@ rules
   project-opt:
     (Some(i), r, gamma, psi, rho) -> <project> (i, r, gamma, psi, rho)
 
-rules // helper
-
-  to-some:
-    None() -> None()
-    
-  to-some:
-    x -> Some(x)
-    where not(<eq> (x, None()))
-
 rules
 
-  union-payload(|role, status, gamma, psi):
+  union-project-payload(|role, status, gamma, psi):
     (q, (payload', gamma', psi')) ->
       ([q'|payload'], <conc> (gamma'', gamma'), <conc> (psi'', psi'))
     where
@@ -179,27 +171,3 @@ rules // Type payload, other
   project-payload(|role):
     (Type(t), Othr(), gamma, psi) ->
       (Type(t), [], [])
-
-
-rules // Roles of
-
-  roles-of:
-    Message(_, _, from, to, i_next) -> [from, to|<roles-of-opt> i_next] 
-  
-  roles-of:
-    Choice(role, interaction, ors) ->
-      [role|<conc> (<roles-of> interaction, <map(\ Or(i) -> <roles-of> i \); concat> ors)]
-  
-  roles-of:
-    Rec(_, i) -> <roles-of> i
-  
-  roles-of:
-    Continue(_) -> []
-
-rules
-  
-  roles-of-opt:
-    Some(i) -> <roles-of> i
-  
-  roles-of-opt:
-    None() -> []
