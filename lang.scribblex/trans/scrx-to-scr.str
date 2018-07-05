@@ -1,0 +1,40 @@
+module scrx-to-scr
+
+imports
+  signatures/ScribbleX-sig
+  signatures/Scribble-sig
+  pp
+  
+rules
+
+  scrx-to-scr:
+    Module(mname, protocol) ->
+      Module(mname, <lower-protocol> protocol)
+
+rules
+  
+  lower-protocol:
+    Global(pname, roles, interactions) ->
+      Global(pname, roles, <lower> (interactions, []))
+
+  lower-protocol:
+    Local(_, _, _) ->
+      <err-msg(|"Generation of local Scribble protocols is currently unsupported. You can generate Scribble from a global ScribbleX protocol instead, and project to local protocols using plain Scribble."); fail>
+
+rules
+
+  lower:
+    (Message(mname, payload, from, to, i_next), psi) ->
+      Message(mname, payload, from, to, i_next)
+  
+  lower:
+    (Choice(role, interaction, ors), psi) ->
+      Choice(role, interaction, ors)
+  
+  lower:
+    (Rec(x, interaction), psi) ->
+      Rec(x, interaction)
+  
+  lower:
+    (Continue(x), psi) ->
+      Continue(x)

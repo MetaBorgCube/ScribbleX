@@ -3,4 +3,5 @@ module Build
 menus
   
   menu: "Generate" (openeditor)
-  	action: "Global-to-local" = generate-global-to-local (source)
+  	action: "Global-to-local"   = generate-global-to-local (source)
+  	action: "Lower to Scribble" = generate-scribble        (source) 

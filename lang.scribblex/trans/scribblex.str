@@ -7,6 +7,7 @@ imports
   outline
   analysis
   global-to-local
+  scrx-to-scr
 
 rules // Debugging
   
@@ -16,17 +17,29 @@ rules // Debugging
       filename := <guarantee-extension(|"aterm")> path
     ; result   := node
 
+rules
+
+  generate-scribble:
+    (node, a, ast, path, project-path) -> None()
+		with 
+		  scr := <scrx-to-scr> ast
+		; <write-local> (path, <guarantee-extension(|"scr")> path, scr)
+
+
+rules
+
 	generate-global-to-local: 
     (node, a, ast, path, project-path) -> None()
 		with 
 			filename := <guarantee-extension(|"scrx")> path
-		; <global-to-local-all-module; debug; map(\ (mod, role) -> <write-local> (path, role, mod) \)> ast
+		; <global-to-local-all-module; debug; map(\ (mod, role) -> <write-local> (path, <new-role-file-name> (path, role, "scrx"), mod) \)> ast
+
+rules // helpers
 
 	write-local:
-	  (path, role, mod) -> None()
+	  (path, fname, mod) -> None()
 		with
-			filename := <new-role-file-name> (path, role, "scrx")
-		;	file := <fopen> (filename, "w")
+			file := <fopen> (fname, "w")
 		; <fprintnl> (file, [<pp-ScribbleX-string> mod])
 		;	<fclose> file
 
