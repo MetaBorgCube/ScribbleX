@@ -1,0 +1,27 @@
+module roles-of
+
+imports
+  signatures/ScribbleX-sig
+
+rules // Roles of
+
+  roles-of:
+    Message(_, _, from, to, i_next) -> [from, to|<roles-of-opt> i_next] 
+  
+  roles-of:
+    Choice(role, interaction, ors) ->
+      [role|<conc> (<roles-of> interaction, <map(\ Or(i) -> <roles-of> i \); concat> ors)]
+  
+  roles-of:
+    Rec(_, i) -> <roles-of> i
+  
+  roles-of:
+    Continue(_) -> []
+
+rules
+  
+  roles-of-opt:
+    Some(i) -> <roles-of> i
+  
+  roles-of-opt:
+    None() -> []
