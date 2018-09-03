@@ -7,7 +7,7 @@ imports
 
 context-free syntax
 
-  Start.Module = [module [ID];
+  Start.ScribbleModule = [module [ID];
 
 type <java> "java.lang.Integer" from "rt.jar" as Int;
 type <java> "java.lang.String" from "rt.jar" as String;

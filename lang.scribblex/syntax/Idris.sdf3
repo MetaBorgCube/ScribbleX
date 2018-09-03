@@ -1,0 +1,56 @@
+module Idris
+
+imports
+
+  Common
+  
+context-free syntax
+
+  Start.IdrisModule = <
+<DataDef*>
+
+<Interface>>
+
+  DataDef.Data = <data <ID> where
+  <{GADTK "\n"}*>>
+  
+  GADTK.K = [[ID] : [GADTParams?] [ID] [TExpr*]]
+  
+  GADTParams.Params = [[{KParam "->"}*] ->]
+  
+  KParam.NamedParam = NamedParam
+  KParam.Param      = TExpr
+  
+  FApp.App = <<ID> <Expr*>>
+  
+  NamedParam.Param = <(<ID> : <TExpr>)>
+  
+  TypeSignature.Sig = <<ID> : <TExpr>>
+  
+  Expr.Id     = ID
+  Expr.NilL   = <[]>
+  Expr.List   = <[<{Expr ","}*>]>
+  Expr.STCons = <<Expr> ::: <Expr>>
+  Expr.App    = <<Expr> <Expr>> {left} // clumsy brackets for pretty printing
+  Expr.AppP   = <(<Expr> <Expr>)> {left} // clumsy bracketed constructor for pretty printing
+  Expr.Case   =
+    <case <Expr> of
+      <{Case "\n"}*>>
+  Expr.Fun    = [(\\ [ID] => [Expr])] // clumsy brackets for pretty printing
+  Expr        = <(<Expr>)> {bracket}
+  
+  TExpr.ExprT  = Expr
+  TExpr.ArrowT = [[TExpr] -> [TExpr]] {right}
+  TExpr.PiT    = [([ID] : [TExpr]) -> [TExpr]] 
+  TExpr.UnitT  = "()"
+  TExpr        = <(<TExpr>)> {bracket}
+  
+  Interface.Interface = <interface <ID> <NamedParam*> where
+  <{TypeSignature "\n\n"}*>>
+
+  Case.Case = [[Pattern] =>
+  [Expr]]
+  
+  Pattern.Id   = ID
+  Pattern.App  = <<ID> <Pattern+>>
+  Pattern      = <(<Pattern>)> {bracket}

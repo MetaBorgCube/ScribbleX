@@ -8,6 +8,7 @@ imports
   analysis
   global-to-local
   scrx-to-scr
+  scrx-to-idris
 
 rules // Debugging
   
@@ -25,7 +26,6 @@ rules
 		  scr := <scrx-to-scr> ast
 		; <write-local> (path, <guarantee-extension(|"scr")> path, scr)
 
-
 rules
 
 	generate-global-to-local: 
@@ -34,12 +34,20 @@ rules
 			filename := <guarantee-extension(|"scrx")> path
 		; <global-to-local-all-module; debug; map(\ (mod, role) -> <write-local> (path, <new-role-file-name> (path, role, "scrx"), mod) \)> ast
 
+rules
+
+  generate-idris:
+    (node, a, ast, path, project-path) -> None()
+    with
+      idr := <scrx-to-idris> ast
+    ; <write-local> (path, <guarantee-extension(|"idr")> path, idr)
+
 rules // helpers
 
 	write-local:
 	  (path, fname, mod) -> None()
 		with
-			file := <fopen> (fname, "w")
+			file := <debug; fopen> (fname, "w")
 		; <fprintnl> (file, [<pp-ScribbleX-string> mod])
 		;	<fclose> file
 

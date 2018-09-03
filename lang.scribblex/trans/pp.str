@@ -7,6 +7,7 @@ imports
   libspoofax/editor/refactoring/-
   pp/ScribbleX-parenthesize
   pp/ScribbleX-pp
+  pp/Scribble-pp
 
 rules
 
@@ -47,3 +48,5 @@ rules
 rules
   
   construct-textual-change = construct-textual-change(pp-partial-ScribbleX-string, parenthesize, override-reconstruction, resugar)
+
+      

@@ -1,0 +1,96 @@
+module scrx-to-idris
+
+imports
+  signatures/ScribbleX-sig
+  pp
+  signatures/Idris-sig
+
+signature
+  
+rules
+
+  scrx-to-idris:
+    Module(mname, protocol) ->
+      <trans-protocol> protocol
+
+rules
+
+  trans-protocol:
+    Local(pname, roles, interaction) ->
+      IdrisModule(
+        [Data("State", states')|choices'],
+        Interface(pname, [Param("m", ArrowT(<mk-type-id> "Type", <mk-type-id> "Type"))],
+          signatures'))
+    where
+      (signatures', states', choices') :=
+      <trans-maybe-interaction> 
+        (pname,
+         interaction,
+         [],
+         [Sig("StateT", ArrowT(<mk-type-id> "State", <mk-type-id> "Type")),
+          Sig("start", <mk-strans> (Id("Var"), NilL(), 
+                                    Fun("l", List([STCons(Id("l"), App(Id("StateT"), Id("Ready")))]))))],
+         [K("Ready", None(), "State", [])],
+         [],
+         Id("Ready"))
+     
+rules
+
+  trans-maybe-interaction:
+    (pname, None(), ctx, signatures, states, choices, prev-state) ->
+      (signatures, states, choices)
+  
+  trans-maybe-interaction:
+    (pname, Some(i), ctx, signatures, states, choices, prev-state) ->
+      <trans-interaction>
+        (pname, i, ctx, signatures, states, choices, prev-state)
+      
+rules
+  
+  trans-interaction: // needs generalizing to n-ary payloads
+    (pname,
+     From(msg, [payload], from_role, opt_cont),
+     ctx, signatures, states, choices, prev-state) ->
+      ([sig|signatures], [state'|states], choices)
+      where
+        (ty, ctx') := <trans-payload> payload
+      ; (state', new-state) := <concat; new-state> [ctx', ctx]
+      ; <debug> "asd"
+      ; sig :=
+          Sig(msg,
+            PiT("l", <mk-type-id> "Var",
+              <mk-strans>
+                (ty,
+                 List([STCons(Id("l"), App(Id("StateT"), prev-state))]),
+                 AppP(Id("const"),
+                   List([STCons(Id("l"), App(Id("StateT"), new-state))])))))
+
+rules // Payload
+
+  trans-payload:
+    Type(Int()) ->
+      (Id("Int"), [])
+
+rules // State constructor and name
+
+  new-state:
+    ctx ->
+      (K(state-name,
+         <map(\ (x, t) -> t \)> ctx,
+         "State",
+         []),
+       <foldr(!Id(state-name), \ ((x , t), xs) -> [Id(x)|xs] \)> ctx)
+    where
+      state-name := <mk-state-prefix; newname> ()
+
+rules // Helpers
+
+  mk-type-id:
+    x -> ExprT(Id(x))
+  
+  mk-strans:
+    (return-type, pre-state, post-state) ->
+      ExprT(App(App(App(App(Id("STrans"), Id("m")), return-type), pre-state), post-state))
+
+  mk-state-prefix:
+    () -> "S"

@@ -10,7 +10,7 @@ rules
 
   scrx-to-scr:
     Module(mname, protocol) ->
-      Module(mname, <lower-protocol> protocol)
+      ScribbleModule(mname, <lower-protocol> protocol)
 
 rules
   
