@@ -30,7 +30,7 @@ rules
 
   g2l-all-protocol:
     Global(pname, roles, interactions) ->
-      <map(\ Role(role) -> (Local(pname, roles, <project> (interactions, role, [], [], [])), role) \)> roles
+      <map(\ Role(role) -> (Local(<concat-strings> [pname, "_", role], roles, <project> (interactions, role, [], [], [])), role) \)> roles
 
   g2l-all-protocol:
     Local(_, _, _) ->

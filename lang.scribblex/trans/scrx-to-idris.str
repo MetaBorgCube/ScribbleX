@@ -77,7 +77,7 @@ rules
       where
         not(Some(Continue(_)) := opt-cont)
       ; (tys, ctx') :=
-          <trans-rcv-interaction> (msg, payload, ctx, prev-state)
+          <trans-rcv-interaction> (msg, payload, ctx)
       ; (state', new-state) := <concat; new-state> [ctx, ctx']
       ; sig :=
           Sig(msg,
@@ -97,7 +97,6 @@ rules
              choices,
              new-state)
   
-  
   trans-interaction:
     (pname,
      From(msg, payload, from-role, Some(Continue(r))),
@@ -105,7 +104,7 @@ rules
       (<concat> [signatures, [sig]], states, choices)
       where
         (tys, ctx') :=
-          <trans-rcv-interaction> (msg, payload, ctx, prev-state)
+          <trans-rcv-interaction> (msg, payload, ctx)
       ; sig :=
           Sig(msg,
             PiTBr("l", <mk-type-id> "Var",
@@ -116,7 +115,7 @@ rules
                    List([STCons(Id("l"), App(Id("StateT"), <lookup> (r, rctx)))]))))))
   
   trans-rcv-interaction:
-    (msg, payload, ctx, prev-state) ->
+    (msg, payload, ctx) ->
       <foldr(!([], []),
              { ctx'', ty' :
              \ (pl, (tys', ctx')) ->
@@ -133,7 +132,7 @@ rules
     where
       not(Some(Continue(_)) := opt-cont)
     ; (tys, ctx') :=
-        <trans-snd-interaction> (msg, payload, ctx, prev-state)
+        <trans-snd-interaction> (msg, payload, ctx)
     ; (state', new-state) := <concat; new-state> [ctx, ctx']
     ; sig :=
         Sig(msg,
@@ -163,7 +162,7 @@ rules
       (<concat> [signatures, [sig]], states, choices)
     where
       (tys, ctx') :=
-        <trans-snd-interaction> (msg, payload, ctx, prev-state)
+        <trans-snd-interaction> (msg, payload, ctx)
     ; sig :=
         Sig(msg,
             <parameterize-by-payloads> 
@@ -175,7 +174,7 @@ rules
                tys))
 
   trans-snd-interaction:
-    (msg, payload, ctx, prev-state) ->
+    (msg, payload, ctx) ->
       <foldr(!([], []),
              { ctx'', ty' :
              \ (pl, (tys', ctx')) ->
@@ -190,24 +189,24 @@ rules
      ctx, rctx, signatures, states, choices, prev-state) ->
       (<concat> [signatures, [sig], signatures1],
        <concat> [states, states1],
-       [choice|<concat> [choices, choices1]])
+       <concat> [choices, choices', choices1])
     where
-      <string-tokenize(|['_']); last> pname := role // local choice
-    ; (signatures0, states0, choices0, Some(new-state0)) :=
+      <string-tokenize(|['_']); last; equal(|role)> pname // local choice
+    ; (signatures0, states0, choices0, opt-new-state0) :=
         <trans-branch>
           (pname,
            interaction,
            ctx, rctx, signatures, states, choices, prev-state)
     ; (signatures1, states1, choices1, new-states) :=
-        <foldr(!(signatures0, states0, choices0, [new-state0]),
-          { signatures'', states'', choices'', new-state'' :
+        <foldr(!(signatures0, states0, choices0, <unpack-opt-new-state> opt-new-state0),
+          { signatures'', states'', choices'', opt-new-state'' :
           \ (Or(Some(i)), (signatures', states', choices', new-states')) ->
               (<conc> (signatures', signatures''),
                <conc> (states', states''),
                <conc> (choices', choices''),
-               <conc> (new-states', [new-state'']))
+               <conc> (new-states', <unpack-opt-new-state> opt-new-state''))
             where
-              (signatures'', states'', choices'', Some(new-state'')) :=
+              (signatures'', states'', choices'', opt-new-state'') :=
                 <trans-branch>
                   (pname,
                    i,
@@ -218,19 +217,39 @@ rules
     ; sig-name := <concat-strings> [sig-name-base, postfix]
     ; choice-name := <concat-strings> ["Choice_", role, postfix]
     ; <next-counter> sig-name-base
-    ; choice@Data(_, ks) := <new-choice> (choice-name, new-states)
-    ; sig :=
-        Sig(sig-name,
-          PiT("l", <mk-type-id> "Var",
-            PiTBr("choice", <mk-type-id> choice-name,
-              <mk-strans>
-                 (Unit(),
-                    List([STCons(Id("l"), App(Id("StateT"), prev-state))]),
-                    App(Id("const"),
-                      List([STCons(Id("l"), App(Id("StateT"),
-                        Brack(
-                          Case(Id("choice"),
-                            <zip; map(choice-case)> (ks, new-states)))))]))))))
+    ; (sig, choices') :=
+        <local-gen-choice-sig>
+          (sig-name, choice-name, new-states,
+           <new-choice> (choice-name, new-states), prev-state)
+
+  local-gen-choice-sig:
+    (sig-name, choice-name, new-states@[(new-state, tys)], _, prev-state) ->
+      (Sig(sig-name,
+          <parameterize-by-payloads> 
+            (<mk-strans>
+               (Unit(),
+                List([STCons(Id("l"), App(Id("StateT"), prev-state))]),
+                Brack(App(Id("const"),
+                  List([STCons(Id("l"), App(Id("StateT"), new-state))])))),
+             tys)), [])
+    where 
+      // hacky: generating a new choice side-effectfully incremented the choice counter; now we decrement it...
+      <prev-counter> "C"
+
+  local-gen-choice-sig:
+    (sig-name, choice-name, new-states@[_|[_|_]], choice@Data(_, ks), prev-state) ->
+      (Sig(sig-name,
+        PiT("l", <mk-type-id> "Var",
+          PiTBr("choice", <mk-type-id> choice-name,
+            <mk-strans>
+               (Unit(),
+                  List([STCons(Id("l"), App(Id("StateT"), prev-state))]),
+                  Brack(App(Id("const"),
+                    List([STCons(Id("l"), App(Id("StateT"),
+                      Brack(
+                        Case(Id("choice"),
+                          <zip; map(choice-case)> (ks, new-states)))))]))))))),
+       [choice])
 
   trans-interaction: // FIXME: handle case where interaction branches are none
     (pname,
@@ -238,24 +257,24 @@ rules
      ctx, rctx, signatures, states, choices, prev-state) ->
       (<concat> [signatures, [sig], signatures1],
        <concat> [states, states1],
-       [choice|<concat> [choices, choices1]])
+       <concat> [choices, choices', choices1])
     where
-      not(<string-tokenize(|['_']); last> pname := role) // non-local choice
-    ; (signatures0, states0, choices0, Some(new-state0)) :=
+      not(<string-tokenize(|['_']); last; equal(|role)> pname) // non-local choice
+    ; (signatures0, states0, choices0, opt-new-state0) :=
         <trans-branch>
           (pname,
            interaction,
            ctx, rctx, signatures, states, choices, prev-state)
     ; (signatures1, states1, choices1, new-states) :=
-        <foldr(!(signatures0, states0, choices0, [new-state0]),
-          { signatures'', states'', choices'', new-state'' :
+        <foldr(!(signatures0, states0, choices0, <unpack-opt-new-state> opt-new-state0),
+          { signatures'', states'', choices'', opt-new-state'' :
           \ (Or(Some(i)), (signatures', states', choices', new-states')) ->
               (<conc> (signatures'', signatures'),
                <conc> (states', states''),
                <conc> (choices', choices''),
-               <conc> (new-states', [new-state'']))
+               <conc> (new-states', <unpack-opt-new-state> opt-new-state''))
             where
-              (signatures'', states'', choices'', Some(new-state'')) :=
+              (signatures'', states'', choices'', opt-new-state'') :=
                 <trans-branch>
                   (pname,
                    i,
@@ -266,19 +285,35 @@ rules
     ; sig-name := <concat-strings> [sig-name-base, postfix]
     ; choice-name := <concat-strings> ["Choice_", role, postfix]
     ; <next-counter> sig-name-base
-    ; choice@Data(_, ks) := <new-choice> (choice-name, new-states)
-    ; sig :=
-        Sig(sig-name,
-          PiTBr("l", <mk-type-id> "Var",
-            <mk-strans>
-               (Id(choice-name),
-                  List([STCons(Id("l"), App(Id("StateT"), prev-state))]),
-                  Brack(
-                    FunBr("choice",
-                      List([STCons(Id("l"), App(Id("StateT"),
-                        Brack(
-                          Case(Id("choice"),
-                            <zip; map(choice-case)> (ks, new-states)))))]))))))
+    ; (sig, choices') :=
+        <non-local-gen-choice-sig>
+          (sig-name, choice-name, new-states,
+           <new-choice> (choice-name, new-states), prev-state)
+    
+  non-local-gen-choice-sig: 
+    (sig-name, choice-name, new-states@[_|[_|_]], choice@Data(_, ks), prev-state) ->
+      (Sig(sig-name,
+        PiTBr("l", <mk-type-id> "Var",
+          <mk-strans>
+             (Id(choice-name),
+                List([STCons(Id("l"), App(Id("StateT"), prev-state))]),
+                Brack(
+                  FunBr("choice",
+                    List([STCons(Id("l"), App(Id("StateT"),
+                      Brack(
+                        Case(Id("choice"),
+                          <zip; map(choice-case)> (ks, new-states)))))])))))),
+      [choice])
+  
+  non-local-gen-choice-sig:
+    (sig-name, choice-name, new-states@[(new-state, tys)], _, prev-state) ->
+      (Sig(sig-name,
+        PiTBr("l", <mk-type-id> "Var",
+          <mk-strans>
+            (<payload-types-to-return-types> tys,
+             List([STCons(Id("l"), App(Id("StateT"), prev-state))]),
+             <generalize-rcv-result> (new-state, tys)))),
+       [])
 
   choice-case:
     (K(choice-case-name, _, _, _),
@@ -302,6 +337,12 @@ rules
     where
       <next-counter> "payloadId"
 
+  unpack-opt-new-state:
+    None() -> []
+  
+  unpack-opt-new-state:
+    Some(new-state) -> [new-state]
+
   trans-interaction:
     (pname,
      Rec(r, opt-interaction),
@@ -310,21 +351,20 @@ rules
         (pname, opt-interaction,
          ctx, <concat> [rctx, [("r", prev-state)]], signatures, states, choices, prev-state)
   
-  trans-interaction:
-    (pname,
-     Continue(r),
-     ctx, rctx, signatures, states, choices, prev-state) ->
-      (<concat> [signatures, [sig]], states, choices)
-    where
-      sig :=
-        Sig(<concat-strings> ["rec_", r],
-          PiTBr("l", <mk-type-id> "Var",
-            <mk-strans>
-              (Unit(),
-               List([STCons(Id("l"), App(Id("StateT"), prev-state))]),
-               Brack(App(Id("const"),
-                 List([STCons(Id("l"), App(Id("StateT"), <lookup> (r, rctx)))]))))))
-      
+//  trans-interaction:
+//    (pname,
+//     Continue(r),
+//     ctx, rctx, signatures, states, choices, prev-state) ->
+//      (<concat> [signatures, [sig]], states, choices)
+//    where
+//      sig :=
+//        Sig(<concat-strings> ["rec_", r],
+//          PiTBr("l", <mk-type-id> "Var",
+//            <mk-strans>
+//              (Unit(),
+//               List([STCons(Id("l"), App(Id("StateT"), prev-state))]),
+//               Brack(App(Id("const"),
+//                 List([STCons(Id("l"), App(Id("StateT"), <lookup> (r, rctx)))]))))))
 
 rules // Translation of branch of conditional
 
@@ -338,13 +378,7 @@ rules // Translation of branch of conditional
        Some((<lookup> (r, rctx), tys)))
     where
       (tys, ctx') :=
-        <foldr(!([], []),
-               { ctx'', ty' :
-               \ (pl, (tys', ctx')) ->
-                   ([ty'|tys'], <concat> [ctx'', ctx'])
-                 where
-                   (ty', ctx'') :=
-                     <trans-snd-payload> (pl, <concat> [ctx, ctx']) \ })> payload
+        <trans-snd-interaction> (msg, payload, ctx)
 
   trans-branch: // Case 'From' followed by a recursive call
     (pname,
@@ -356,15 +390,9 @@ rules // Translation of branch of conditional
        Some((<lookup> (r, rctx), tys)))
     where
       (tys, ctx') :=
-        <foldr(!([], []),
-               { ctx'', ty' :
-               \ (pl, (tys', ctx')) ->
-                   ([ty'|tys'], <concat> [ctx'', ctx'])
-                 where
-                   (ty', ctx'') :=
-                     <trans-snd-payload> (pl, <concat> [ctx, ctx']) \ })> payload
+        <trans-rcv-interaction> (msg, payload, ctx)
   
-  trans-branch: // Case 'To' followed by anything else than a recursive call
+  trans-branch: // Case 'To' followed by anything else but a recursive call
     (pname,
      To(msg, payload, from-role, opt-cont),
      ctx, rctx, signatures, states, choices, prev-state) ->
@@ -375,13 +403,7 @@ rules // Translation of branch of conditional
     where
       not(Some(Continue(_)) := opt-cont)
     ; (tys, ctx') :=
-        <foldr(!([], []),
-               { ctx'', ty' :
-               \ (pl, (tys', ctx')) ->
-                   ([ty'|tys'], <concat> [ctx'', ctx'])
-                 where
-                   (ty', ctx'') :=
-                     <trans-snd-payload> (pl, <concat> [ctx, ctx']) \ })> payload
+        <trans-snd-interaction> (msg, payload, ctx)
     ; (state', new-state) := <concat; new-state> [ctx, ctx']
     ; (signatures', states', choices') :=
         <trans-maybe-interaction> 
@@ -394,7 +416,7 @@ rules // Translation of branch of conditional
            choices,
            new-state)
 
-  trans-branch: // Case 'From' followed by anything else than a recursive call
+  trans-branch: // Case 'From' followed by anything else but a recursive call
     (pname,
      From(msg, payload, from-role, opt-cont),
      ctx, rctx, signatures, states, choices, prev-state) ->
@@ -402,27 +424,30 @@ rules // Translation of branch of conditional
        <diff> (states', states),
        <diff> (choices', choices),
        Some((new-state, tys)))
-      where
-        not(Some(Continue(_)) := opt-cont)
-      ; (tys, ctx') :=
-          <foldr(!([], []),
-                 { ctx'', ty' :
-                 \ (pl, (tys', ctx')) ->
-                     ([ty'|tys'], <concat> [ctx'', ctx'])
-                   where 
-                     (ty', ctx'') :=
-                       <trans-rcv-payload> (pl, <concat> [ctx, ctx']) \ })> payload
-      ; (state', new-state) := <concat; new-state> [ctx, ctx']
-      ; (signatures', states', choices') :=
-          <trans-maybe-interaction> 
-            (pname,
-             opt-cont,
-             <concat> [ctx, ctx'],
-             rctx,
-             <concat> [signatures],
-             <concat> [states, [state']],
-             choices,
-             new-state)
+    where
+      not(Some(Continue(_)) := opt-cont)
+    ; (tys, ctx') :=
+        <trans-rcv-interaction> (msg, payload, ctx)
+    ; (state', new-state) := <concat; new-state> [ctx, ctx']
+    ; (signatures', states', choices') :=
+        <trans-maybe-interaction> 
+          (pname,
+           opt-cont,
+           <concat> [ctx, ctx'],
+           rctx,
+           <concat> [signatures],
+           <concat> [states, [state']],
+           choices,
+           new-state)
+
+  trans-branch:
+    (pname,
+     Continue(_),
+     ctx, rctx, signatures, states, choices, prev-state) ->
+      ([],
+       [],
+       [],
+       None())
 
 rules // Translation of payload reception
 
