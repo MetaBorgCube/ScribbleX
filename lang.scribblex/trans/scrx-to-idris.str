@@ -4,14 +4,32 @@ imports
   signatures/ScribbleX-sig
   pp
   signatures/Idris-sig
+  scribblex
 
 signature
   
+  sorts SendPayloadKind constructors // used for parameterizing send commands by singleton reference payloads
+    Unnamed : Expr -> SendPayloadKind
+    Named   : ID * Expr -> SendPayloadKind
+
+  sorts RecvPayloadKind constructors // used for case analysis on payload in result types
+    NonSingleton : Expr -> RecvPayloadKind
+    Singleton    : ID * Expr -> RecvPayloadKind
+
 rules
+
+  test-local-to-idris:
+    mod -> result
+    with
+      ( <strip-annos; scrx-to-idris; pp-ScribbleX-string> mod
+      ; result := SUCCEEDS())
+      <+ result := FAILS()
 
   scrx-to-idris:
     Module(mname, protocol) ->
       <trans-protocol> protocol
+    where // initialize counter used for fresh names
+      <new-counter> "S"
 
 rules
 
@@ -28,8 +46,8 @@ rules
          interaction,
          [],
          [Sig("StateT", ArrowT(<mk-type-id> "State", <mk-type-id> "Type")),
-          Sig("start", <mk-strans> (Id("Var"), NilL(), 
-                                    Fun("l", List([STCons(Id("l"), App(Id("StateT"), Id("Ready")))]))))],
+          Sig("start", <mk-strans-nobr> (Id("Var"), NilL(), 
+                                         Brack(Fun("l", List([STCons(Id("l"), App(Id("StateT"), Id("Ready")))])))))],
          [K("Ready", None(), "State", [])],
          [],
          Id("Ready"))
@@ -49,39 +67,217 @@ rules
   
   trans-interaction: // needs generalizing to n-ary payloads
     (pname,
-     From(msg, [payload], from_role, opt_cont),
+     From(msg, payload, from_role, opt_cont),
      ctx, signatures, states, choices, prev-state) ->
-      ([sig|signatures], [state'|states], choices)
+      <trans-maybe-interaction> 
+        (pname,
+         opt_cont,
+         <concat> [ctx, ctx'],
+         <concat> [signatures, [sig]],
+         <concat> [states, [state']],
+         choices,
+         new-state)
       where
-        (ty, ctx') := <trans-payload> payload
-      ; (state', new-state) := <concat; new-state> [ctx', ctx]
-      ; <debug> "asd"
+        (tys, ctx') :=
+          <foldr(!([], []),
+                 { ctx'', ty' :
+                 \ (pl, (tys', ctx')) ->
+                     ([ty'|tys'], <concat> [ctx'', ctx'])
+                   where 
+                     (ty', ctx'') :=
+                       <trans-rcv-payload> (pl, <concat> [ctx, ctx']) \ })> payload
+      ; (state', new-state) := <concat; new-state> [ctx, ctx']
       ; sig :=
           Sig(msg,
-            PiT("l", <mk-type-id> "Var",
+            PiTBr("l", <mk-type-id> "Var",
               <mk-strans>
-                (ty,
+                (<payload-types-to-return-types> tys,
                  List([STCons(Id("l"), App(Id("StateT"), prev-state))]),
-                 AppP(Id("const"),
-                   List([STCons(Id("l"), App(Id("StateT"), new-state))])))))
+                 <generalize-rcv-result> (new-state, tys))))
+  
+  trans-interaction: // needs generalizing to n-ary payloads
+    (pname,
+     To(msg, payload, from_role, opt_cont),
+     ctx, signatures, states, choices, prev-state) ->
+      <trans-maybe-interaction> 
+        (pname,
+         opt_cont,
+         <concat> [ctx, ctx'],
+         <concat> [signatures, [sig]],
+         <concat> [states, [state']],
+         choices,
+         new-state)
+    where
+      (tys, ctx') :=
+        <foldr(!([], []),
+               { ctx'', ty' :
+               \ (pl, (tys', ctx')) ->
+                   ([ty'|tys'], <concat> [ctx'', ctx'])
+                 where
+                   (ty', ctx'') :=
+                     <trans-snd-payload> (pl, <concat> [ctx, ctx']) \ })> payload
+    ; (state', new-state) := <concat; new-state> [ctx, ctx']
+    ; sig :=
+        Sig(msg,
+            <parameterize-by-payloads> 
+              (<mk-strans>
+                 (Unit(),
+                  List([STCons(Id("l"), App(Id("StateT"), prev-state))]),
+                  Brack(App(Id("const"),
+                    List([STCons(Id("l"), App(Id("StateT"), new-state))])))),
+               tys))
 
-rules // Payload
+rules // Translation of payload reception
 
-  trans-payload:
-    Type(Int()) ->
-      (Id("Int"), [])
+  trans-rcv-payload:
+    (Type(Int()), _) ->
+      (NonSingleton(Id("Int")), [])
+
+  trans-rcv-payload:
+    (Type(String()), _) ->
+      (NonSingleton(Id("String")), [])
+
+  trans-rcv-payload: // FIXME: t should not be a reference to a singleton type
+    (Ston(x, t), ctx) ->
+      (Singleton(x, ty'), [(x, ty')|ctx'])
+    where
+      (NonSingleton(ty'), ctx') := <trans-rcv-payload> (Type(t), ctx)
+    ; <new-counter> x
+  
+  trans-rcv-payload:
+    (Type(Id(x)), ctx) ->
+      (NonSingleton(Brack(DPairT(new-x,
+                                 <lookup> (x, ctx),
+                                 Eq(Id(new-x), Id(x))))),
+        [])
+    where
+      new-x := <concat-strings> [x, <get-counter; int-to-string> x]
+
+rules // Translation of payload transmission
+
+  trans-snd-payload:
+    (Type(Int()), _) ->
+      (Unnamed(Id("Int")), [])
+
+  trans-snd-payload:
+    (Type(String()), _) ->
+      (Unnamed(Id("String")), [])
+
+  trans-snd-payload: // assumption: cannot type a type variable by a singleton type
+    (Ston(x, t), ctx) ->
+      (Named(x, ty'), [(x, ty')|ctx'])
+    where
+      (Unnamed(ty'), ctx') := <trans-snd-payload> (Type(t), ctx)
+    ; <new-counter> x
+
+  trans-snd-payload:
+    (Type(Id(x)), ctx) ->
+      (Named(x, <lookup> (x, ctx)), [])
+
+rules // Generalize final state by variables being received; 'from' case
+
+  generalize-rcv-result:
+    (state, []) ->
+      Brack(
+        App(Id("const"), 
+          List([STCons(Id("l"), App(Id("StateT"), state))])))
+      
+  generalize-rcv-result:
+    (state, [Singleton(x, _)]) ->
+      Brack(
+        Fun(x, 
+          List([STCons(Id("l"), App(Id("StateT"), state))])))
+
+  generalize-rcv-result:
+    (state, [NonSingleton(_)]) ->
+      Brack(
+        App(Id("const"), 
+          List([STCons(Id("l"), App(Id("StateT"), state))])))
+  
+  generalize-rcv-result:
+    (state, tys) ->
+      Brack(
+        FunBr("r",
+          List([STCons(Id("l"), App(Id("StateT"),
+            Brack(
+              Case(Id("r"),
+                [Case(Brack(Tuple(<map(ty2pat)> tys)), state)]))))])))
+  
+  ty2pat:
+    Singleton(x, _) -> Id(x)
+
+  ty2pat:
+    NonSingleton(_) -> Id("_")
+
+rules // Parameterize command by payload being sent; 'to' case
+
+  parameterize-by-payloads:
+    (trans, []) ->
+      PiTBr("l", <mk-type-id> "Var", trans)
+      
+      
+  parameterize-by-payloads:
+    (trans, tys@[_|_]) ->
+      PiT("l", <mk-type-id> "Var",
+        <init; debug;
+         foldr(!<parameterize-by-payload-br> (<last> tys, trans),
+               debug; parameterize-by-payload)> tys)
+
+  parameterize-by-payload-br:
+    (Unnamed(ty), trans) ->
+      ArrowTBr(ExprT(ty), trans)
+      
+  parameterize-by-payload-br:
+    (Named(x, ty), trans) ->
+      PiTBr(x, ExprT(ty), trans)
+
+  parameterize-by-payload:
+    (Unnamed(ty), trans) ->
+      ArrowT(ExprT(ty), trans)
+      
+  parameterize-by-payload:
+    (Named(x, ty), trans) ->
+      PiT(x, ExprT(ty), trans)
+
+
+  unpack:
+    Unnamed(ty) -> ty
+  
+  unpack:
+    Named(_, ty) -> ty
+
+rules
+
+  payload-types-to-return-types:
+    [] -> Unit()
+  
+  payload-types-to-return-types:
+    [ty] -> <unpack> ty
+  
+  payload-types-to-return-types:
+    tys@[_|[_|_]] ->
+      Brack(<init;
+             foldr(!<last; unpack> tys, 
+                   \ (ty, prod) -> Pair(<unpack> ty, prod) \)> tys)
+
+  unpack:
+    Singleton(_, ty) -> ty
+  
+  unpack:
+    NonSingleton(ty) -> ty 
 
 rules // State constructor and name
 
   new-state:
     ctx ->
       (K(state-name,
-         <map(\ (x, t) -> t \)> ctx,
+         Some(<map(\ (x, t) -> NamedParam(Param(x, ExprT(t))) \)> ctx),
          "State",
          []),
-       <foldr(!Id(state-name), \ ((x , t), xs) -> [Id(x)|xs] \)> ctx)
+       <foldl(\ ((x , t), st) -> App(st, Id(x)) \); 
+        brack-if-needed(|ctx)> (ctx, Id(state-name)))
     where
-      state-name := <mk-state-prefix; newname> ()
+      state-name := <mk-state-id> ()
 
 rules // Helpers
 
@@ -90,7 +286,23 @@ rules // Helpers
   
   mk-strans:
     (return-type, pre-state, post-state) ->
+      ExprT(AppBr(AppBr(App(App(Id("STrans"), Id("m")), return-type), pre-state), post-state))
+
+  mk-strans-nobr: // no AppBr for layout
+    (return-type, pre-state, post-state) ->
       ExprT(App(App(App(App(Id("STrans"), Id("m")), return-type), pre-state), post-state))
 
-  mk-state-prefix:
-    () -> "S"
+  mk-state-id:
+    () -> <concat-strings> ["S", <get-counter; int-to-string> "S"]
+    with
+      <next-counter> "S"
+
+  brack-if-needed(|ctx):
+    t -> Brack(t)
+    where
+      [_|_] := ctx
+  
+  brack-if-needed(|ctx):
+    t -> t
+    where
+      [] := ctx

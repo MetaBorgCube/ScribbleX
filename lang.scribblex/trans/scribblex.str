@@ -10,6 +10,12 @@ imports
   scrx-to-scr
   scrx-to-idris
 
+signature // For testing
+
+  sorts TestOutcome constructors
+    SUCCEEDS : TestOutcome
+    FAILS    : TestOutcome
+
 rules // Debugging
   
   debug-show-aterm:

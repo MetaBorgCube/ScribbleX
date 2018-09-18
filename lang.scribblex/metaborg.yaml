@@ -20,7 +20,8 @@ debug:
 language:
   sdf:
     pretty-print: ScribbleX
-    sdf2table: c
+    sdf2table: java
+    jsglr-version: layout-sensitive
     placeholder:
       prefix: "$"
   stratego:

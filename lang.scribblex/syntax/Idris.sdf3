@@ -1,5 +1,7 @@
 module Idris
 
+// This grammar is meant for generation of Idris only -- not for parsing.
+
 imports
 
   Common
@@ -7,16 +9,25 @@ imports
 context-free syntax
 
   Start.IdrisModule = <
+import Control.ST
+import Control.ST.ImplicitCall
+import Data.String
+
 <DataDef*>
 
-<Interface>>
+<Interface>
 
-  DataDef.Data = <data <ID> where
+-- Local Variables:
+-- idris-load-packages: ("contrib")
+-- End:
+>
+
+  DataDef.Data = <data <ID> : Type where
   <{GADTK "\n"}*>>
   
   GADTK.K = [[ID] : [GADTParams?] [ID] [TExpr*]]
   
-  GADTParams.Params = [[{KParam "->"}*] ->]
+  GADTParams = [[{KParam " -> "}*] ->]
   
   KParam.NamedParam = NamedParam
   KParam.Param      = TExpr
@@ -31,18 +42,34 @@ context-free syntax
   Expr.NilL   = <[]>
   Expr.List   = <[<{Expr ","}*>]>
   Expr.STCons = <<Expr> ::: <Expr>>
-  Expr.App    = <<Expr> <Expr>> {left} // clumsy brackets for pretty printing
-  Expr.AppP   = <(<Expr> <Expr>)> {left} // clumsy bracketed constructor for pretty printing
+  Expr.App    = <<Expr> <Expr>> {left}
+  Expr.AppBr  = 
+    <<Expr>
+       <Expr>> {left}
   Expr.Case   =
     <case <Expr> of
-      <{Case "\n"}*>>
-  Expr.Fun    = [(\\ [ID] => [Expr])] // clumsy brackets for pretty printing
+  <{Case "\n"}*>>
+  Expr.Fun    = [\\ [ID] => [Expr]]
+  Expr.FunBr  = 
+    [\\ [ID] =>
+  [Expr]]
+  Expr.Unit   = "()"
+  Expr.DPairT = <<ID> : <Expr> ** <Expr>>
+  Expr.Pair   = <<Expr> , <Expr>>
+  Expr.Eq     = <<Expr> = <Expr>>
+  Expr.Brack  = <(<Expr>)> // bracket constructor for pretty-printing
   Expr        = <(<Expr>)> {bracket}
   
   TExpr.ExprT  = Expr
-  TExpr.ArrowT = [[TExpr] -> [TExpr]] {right}
-  TExpr.PiT    = [([ID] : [TExpr]) -> [TExpr]] 
-  TExpr.UnitT  = "()"
+  TExpr.ArrowT = [[TExpr] -> [TExpr]]
+  TExpr.ArrowTBr = [[TExpr] ->
+  [TExpr]]
+  TExpr.PiT    = [([ID] : [TExpr]) -> [TExpr]]
+  TExpr.PiTBr  = [([ID] : [TExpr]) ->
+  [TExpr]]
+  TExpr.Brack  = <(<TExpr>)> // bracket constructor for pretty-printing
+  TExpr.Break  = <
+  <TExpr>>  // break character, used for pretty-printing
   TExpr        = <(<TExpr>)> {bracket}
   
   Interface.Interface = <interface <ID> <NamedParam*> where
@@ -51,6 +78,8 @@ context-free syntax
   Case.Case = [[Pattern] =>
   [Expr]]
   
-  Pattern.Id   = ID
-  Pattern.App  = <<ID> <Pattern+>>
-  Pattern      = <(<Pattern>)> {bracket}
+  Pattern.Id    = ID
+  Pattern.App   = <<ID> <Pattern+>>
+  Pattern.Tuple = {Pattern " , "}*
+  Pattern.Brack = <(<Pattern>)> // bracket constructor for pretty-printing
+  Pattern       = <(<Pattern>)> {bracket}

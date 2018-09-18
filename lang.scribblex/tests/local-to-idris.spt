@@ -1,0 +1,19 @@
+module local-to-idris
+
+language ScribbleX
+
+test basic 2-actor from [[
+module Test;
+
+local protocol test(role A, role B) {
+  m(Int) from A;
+}
+]] run test-local-to-idris to SUCCEEDS()
+
+test singleton 2-actor from [[
+module Test;
+
+local protocol test(role A, role B) {
+  m(x : Int) from A;
+}
+]] run test-local-to-idris to SUCCEEDS()

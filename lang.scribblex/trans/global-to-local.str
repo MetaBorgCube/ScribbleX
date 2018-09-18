@@ -4,6 +4,7 @@ imports
   signatures/ScribbleX-sig
   pp
   roles-of
+  scribblex
 
 signature
 
@@ -11,10 +12,6 @@ signature
     Send : PayloadKind
     Recv : PayloadKind
     Othr : PayloadKind
-
-  sorts TestOutcome constructors
-    SUCCEEDS : TestOutcome
-    FAILS    : TestOutcome
 
 rules
 
