@@ -1,0 +1,43 @@
+module local_A;
+
+local protocol Test(role A, role B) {
+  a1(x : Int)             from A;
+  a2(Int)                 from A;
+  a3(x)                   from A;
+  a4()                    from A;
+  a5(y : Int, x)          from A;
+  a6(z : Int, q : String) from A;
+  
+  rec r {
+    b1(a : Int)             to A;
+    b2(Int)                 to A;
+    b3(a)                   to A;
+    b4()                    to A;
+    b5(b : String, a)       to A;
+    b6(c : String, d : Int) to A;
+    
+    choice at B {
+      c1(Int) from B;
+      continue r;
+    } or {
+      c2(Int) from B;
+      choice at A {
+        c3(e : Int) from B;
+      } or {
+        c4(f : Int) from B;
+        c5(f) from B;
+        choice at A {
+          c6(Int) from B;
+        } or {
+          c7(g : Int, Int, String) to B;
+          c8(h : Int) from B;
+          continue r;
+        } or {
+          c9(f) to B;
+          c10(h : String) to B;
+          continue r;
+        }
+      }
+    }
+  }
+}
