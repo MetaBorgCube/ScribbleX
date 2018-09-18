@@ -5,9 +5,10 @@ global protocol CSB(role C, role S, role B) {
     reqPrice(String) from C to S;
     priceInfo(p : Int) from S to C;
     choice at C {
+      reject() from C to S;
       continue r;
     } or {
-      priceInfo(p) from S to B;
+      accept() from C to S;
       reqTransfer(p) from C to B;
       ackTransfer(p) from B to S;
     }

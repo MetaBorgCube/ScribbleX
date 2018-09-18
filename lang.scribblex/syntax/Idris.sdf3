@@ -13,7 +13,7 @@ import Control.ST
 import Control.ST.ImplicitCall
 import Data.String
 
-<DataDef*>
+<{DataDef "\n\n"}*>
 
 <Interface>
 
@@ -68,8 +68,6 @@ import Data.String
   TExpr.PiTBr  = [([ID] : [TExpr]) ->
   [TExpr]]
   TExpr.Brack  = <(<TExpr>)> // bracket constructor for pretty-printing
-  TExpr.Break  = <
-  <TExpr>>  // break character, used for pretty-printing
   TExpr        = <(<TExpr>)> {bracket}
   
   Interface.Interface = <interface <ID> <NamedParam*> where
