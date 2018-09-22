@@ -12,13 +12,17 @@ context-free syntax
   
   Start.Module = <module <ID>;
 
+<Import*>
+
 <TypeDef*>
 
 <Protocol>>
 
-///////////////
-// TYPE DEFS //
-///////////////
+///////////////////////////
+// IMPORTS AND TYPE DEFS //
+///////////////////////////
+
+  Import.Import = [import <idris> [{ID "."}+];]
 
   TypeDef.TDef = [type <idris> [ID] arity [INT];]
 
@@ -26,11 +30,11 @@ context-free syntax
 // GLOBAL PROTOCOL //
 /////////////////////
 
-  Protocol.Global = <global protocol <ID>(<{Role ","}*>) {
+  Protocol.Global = <global protocol <ID>(<{Role ", "}*>) {
   <InteractionG>
 }>
 
-  InteractionG.Message  = <<ID>(<{Payload ","}*>) from <ID> to <ID>;
+  InteractionG.Message  = <<ID>(<{Payload ", "}*>) from <ID> to <ID>;
 <InteractionG?>>
   
   InteractionG.Choice   = <choice at <ID> {
@@ -53,14 +57,14 @@ context-free syntax
 // LOCAL PROTOCOL //
 ////////////////////
 
-  Protocol.Local = <local protocol <ID>(<{Role ","}*>) {
+  Protocol.Local = <local protocol <ID>(<{Role ", "}*>) {
   <InteractionL?>
 }>
   
-  InteractionL.From     = <<ID>(<{Payload ","}*>) from <ID>;
+  InteractionL.From     = <<ID>(<{Payload ", "}*>) from <ID>;
 <InteractionL?>>
   
-  InteractionL.To       = <<ID>(<{Payload ","}*>) to <ID>;
+  InteractionL.To       = <<ID>(<{Payload ", "}*>) to <ID>;
 <InteractionL?>>
   
   InteractionL.Choice   = <choice at <ID> {
@@ -87,10 +91,10 @@ context-free syntax
 // TYPES //
 ///////////
 
-  Type.Int = <Int>
+  Type.Int    = <Int>
   Type.String = <String>
-  Type.Id = ID
-  Type.Ctor = <<ID>(<{Type ","}*>)>
+  Type.Id     = ID
+  Type.Ctor   = <<ID>(<{Type ", "}*>)>
   
 lexical syntax
 

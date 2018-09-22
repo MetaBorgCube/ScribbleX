@@ -23,14 +23,21 @@ rules
       <+ result := FAILS()
 
   global-to-local-all-module:
-    Module(mname, tdefs, protocol) ->
-      <g2l-all-protocol; map(\ (lp, role) -> (Module(<concat-strings> [mname, "_", role], tdefs, lp), role) \)> protocol
+    Module(mname, imports, tdefs, protocol) ->
+      <g2l-all-protocol;
+       map(\ (lp, role) ->
+               (Module(<concat-strings> [mname, "_", role], imports, tdefs, lp), role) \)>
+        (protocol, <map(\ TDef(name, arity) -> (name, arity) \)> tdefs)
+    
 
 rules
 
   g2l-all-protocol:
-    Global(pname, roles, interactions) ->
-      <map(\ Role(role) -> (Local(<concat-strings> [pname, "_", role], roles, <project> (interactions, role, [], [], [])), role) \)> roles
+    (Global(pname, roles, interactions), ctx_td) ->
+      <map(\ Role(role) ->
+               (Local(<concat-strings> [pname, "_", role],
+                      roles,
+                      <project> (interactions, role, [], [], [], ctx_td)), role) \)> roles
 
   g2l-all-protocol:
     Local(_, _, _) ->
@@ -39,111 +46,117 @@ rules
 rules
 
   project:
-    (Message(mname, payload, from, to, i_next), r, gamma, psi, rho) ->
-      Some(To(mname, payload', to, <project-opt> (i_next, r, <conc> (gamma', gamma), <conc> (psi', psi), rho)))
+    (Message(mname, payload, from, to, i_next), r, gamma, psi, rho, ctx_td) ->
+      Some(To(mname, payload', to, <project-opt> (i_next, r, <conc> (gamma', gamma), <conc> (psi', psi), rho, ctx_td)))
     where
       <eq> (r, from); not(<eq> (r, to))
     ; (payload', gamma', psi') :=
-        <foldl(union-project-payload(|r, Send(), gamma, psi)); rev>
+        <foldl(union-project-payload(|r, Send(), gamma, psi, ctx_td)); rev>
           (payload, ([], [], []))
   
   project:
-    (Message(mname, payload, from, to, i_next), r, gamma, psi, rho) ->
-      Some(From(mname, payload', from, <project-opt> (i_next, r, <conc> (gamma', gamma), <conc> (psi', psi), rho)))
+    (Message(mname, payload, from, to, i_next), r, gamma, psi, rho, ctx_td) ->
+      Some(From(mname, payload', from, <project-opt> (i_next, r, <conc> (gamma', gamma), <conc> (psi', psi), rho, ctx_td)))
     where
       <eq> (r, to); not(<eq> (r, from))
     ; (payload', gamma', psi') :=
-        <foldl(union-project-payload(|r, Recv(), gamma, psi)); rev>
+        <foldl(union-project-payload(|r, Recv(), gamma, psi, ctx_td)); rev>
           (payload, ([], [], []))
   
   project:
-    (Message(mname, payload, from, to, i_next), r, gamma, psi, rho) ->
-      <project-opt> (i_next, r, <conc> (gamma', gamma), <conc> (psi', psi), rho)
+    (Message(mname, payload, from, to, i_next), r, gamma, psi, rho, ctx_td) ->
+      <project-opt> (i_next, r, <conc> (gamma', gamma), <conc> (psi', psi), rho, ctx_td)
     where
       not(<eq> (r, to)); not(<eq> (r, from))
     ; (_, gamma', psi') :=
-        <foldl(union-project-payload(|r, Othr(), gamma, psi)); rev>
+        <foldl(union-project-payload(|r, Othr(), gamma, psi, ctx_td)); rev>
           (payload, ([], [], []))
 
   project:
-    (Message(mname, payload, from, to, i_next), r, gamma, psi, rho) ->
+    (Message(mname, payload, from, to, i_next), r, gamma, psi, rho, ctx_td) ->
       <err-msg(|<concat-strings> ["Self-interaction is absurd for ", from]); fail>
     where
       <eq> (from, to)
 
   project:
-    (Choice(role, interaction, ors), r, gamma, psi, rho) ->
-      Some(Choice(role, <project> (interaction, r, gamma, psi, rho), <map(\ Or(i) -> Or(<project> (i, r, gamma, psi, rho)) \)> ors))
+    (Choice(role, interaction, ors), r, gamma, psi, rho, ctx_td) ->
+      Some(Choice(role,
+        <project> (interaction, r, gamma, psi, rho, ctx_td),
+        <map(\ Or(i) -> Or(<project> (i, r, gamma, psi, rho, ctx_td)) \)> ors))
     where
       (<elem> (r, <roles-of> interaction)) <+
       <elem> (r, <map(\ Or(i) -> <roles-of> i \); concat> ors)
 
   project:
-    (Choice(role, interaction, ors), r, gamma, psi, rho) -> None()
+    (Choice(role, interaction, ors), r, gamma, psi, rho, ctx_td) -> None()
     where
       not(<elem> (r, <roles-of> interaction))
     ; not(<elem> (r, <map(\ Or(i) -> <roles-of> i \); concat> ors))
 
   project:
-    (Rec(x, interaction), r, gamma, psi, rho) ->
-      Some(Rec(x, <project> (interaction, r, gamma, psi, [x|rho])))
+    (Rec(x, interaction), r, gamma, psi, rho, ctx_td) ->
+      Some(Rec(x, <project> (interaction, r, gamma, psi, [x|rho], ctx_td)))
   
   project:
-    (Continue(x), r, gamma, psi, rho) ->
+    (Continue(x), r, gamma, psi, rho, ctx_td) ->
       Some(Continue(x))
     where <elem> (x, rho)
     
   project:
-    (Continue(x), r, gamma, psi, rho) ->
+    (Continue(x), r, gamma, psi, rho, ctx_td) ->
       <err-msg(|<concat-strings> ["Non-existant continue label: ", x]); fail>
     where not(<elem> (x, rho))
 
 rules
   
   project-opt:
-    (None(), _, _, _, _) -> None()
+    (None(), _, _, _, _, _) -> None()
   
   project-opt:
-    (Some(i), r, gamma, psi, rho) -> <project> (i, r, gamma, psi, rho)
+    (Some(i), r, gamma, psi, rho, ctx_td) -> <project> (i, r, gamma, psi, rho, ctx_td)
 
 rules
 
-  union-project-payload(|role, status, gamma, psi):
+  union-project-payload(|role, status, gamma, psi, ctx_td):
     (q, (payload', gamma', psi')) ->
       ([q'|payload'], <union> (gamma'', gamma'), <union> (psi'', psi'))
     where
-      (q', gamma'', psi'') := <project-payload(|role)> (q, status, <union> (gamma, gamma'), <union> (psi, psi'))
+      (q', gamma'', psi'') :=
+        <project-payload(|role)>
+          (q, status, <union> (gamma, gamma'), <union> (psi, psi'), ctx_td)
 
 rules // Singleton payload
 
   project-payload(|role):
-    (Ston(x, t), s, gamma, psi) ->
+    (Ston(x, t), s, gamma, psi, ctx_td) ->
       (Ston(x, t'), [(x, t')|gamma'], [(x, t')|psi'])
     where
       <elem> (s, [Send(), Recv()])
-    ; (Type(t'), gamma', psi') := <project-payload(|role)> (Type(t), s, gamma, psi)
+    ; (Type(t'), gamma', psi') := <project-payload(|role)> (Type(t), s, gamma, psi, ctx_td)
 
   project-payload(|role):
-    (Ston(x, t), Othr(), gamma, psi) ->
+    (Ston(x, t), Othr(), gamma, psi, ctx_td) ->
       (Ston(x, t'), gamma', [(x, t')|psi'])
     where
-      (Type(t'), gamma', psi') := <project-payload(|role)> (Type(t), Othr(), gamma, psi)
+      (Type(t'), gamma', psi') :=
+        <project-payload(|role)> (Type(t), Othr(), gamma, psi, ctx_td)
 
 rules // Type payload, sending
 
   project-payload(|role):
-    (Type(t), Send(), gamma, psi) -> 
+    (Type(t), Send(), gamma, psi, ctx_td) -> 
       (Type(t), [], [])
     where
       <elem> (t, [Int(), String()])
 
   project-payload(|role):
-    (Type(Id(x)), Send(), gamma, psi) -> 
+    (Type(Id(x)), Send(), gamma, psi, ctx_td) -> 
       (Type(Id(x)), [], [])
     where <lookup> (x, gamma)
 
   project-payload(|role):
-    (Type(Id(x)), Send(), gamma, psi) -> <err-msg(|<concat-strings> ["The actor ", role, " refers to a singleton type variable ", x, " that is unknown to the actor."]); fail>
+    (Type(Id(x)), Send(), gamma, psi, ctx_td) ->
+      <err-msg(|<concat-strings> ["The actor ", role, " refers to a singleton type variable ", x, " that is unknown to the actor."]); fail>
     where
       not(<lookup> (x, gamma))
     
@@ -151,28 +164,65 @@ rules // Type payload, sending
 rules // Type payload, receiving
 
   project-payload(|role):
-    (Type(t), Recv(), gamma, psi) -> 
+    (Type(t), Recv(), gamma, psi, ctx_td) -> 
       (Type(t), [], [])
     where
       <elem> (t, [Int(), String()]) <+
       (Id(x) := t; <lookup> (x, gamma))
 
   project-payload(|role):
-    (Type(Id(x)), Recv(), gamma, psi) ->
+    (Type(Id(x)), Recv(), gamma, psi, ctx_td) ->
       (Ston(x, t), [(x, t)], [])
     where
       not(<lookup> (x, gamma))
     ; t := <lookup> (x, psi)
   
   project-payload(|role):
-    (Type(Id(x)), Recv(), gamma, psi) -> <err-msg(|<concat-strings> ["The actor ", role, " refers to a singleton type variable ", x, " that has not been introduced in the protocol."]); fail>
+    (Type(Id(x)), Recv(), gamma, psi, ctx_td) ->
+      <err-msg(|<concat-strings>
+        ["The actor ", role,
+         " refers to a singleton type variable ", x,
+         " that has not been introduced in the protocol."]); fail>
     where
       not(<lookup> (x, psi))
+
+rules // Constructor payload
+  
+  project-payload(|role):
+    (Type(Ctor(x, ts)), _, gamma, psi, ctx_td) ->
+      (Type(Ctor(x, ts)), [], [])
+    where
+      <map(check-ctor-arg(|role, x, gamma, ctx_td))> ts
+    ; ((arity := <lookup> (x, ctx_td)) <+
+       (err-msg(|<concat-strings>
+         ["The actor ", role, " refers to an undeclared type constructor: ", x]); fail))
+    ; ((<eq> (arity, <length; int-to-string> ts)) <+
+       (err-msg(|<concat-strings>
+         ["The actor ", role,
+          " refers to a type constructor ", x, 
+          " that expects ", arity,
+          " arguments, but is given ",
+          <length; int-to-string> ts]); fail))
+
+rules // Constructor argument type projection
+
+  check-ctor-arg(|role, ctor-name, gamma, ctx_td):
+    t -> t
+    where
+      <elem> (t, [Int(), String()])
+
+  check-ctor-arg(|role, ctor-name, gamma, ctx_td):
+    Id(x) -> Id(x)
+    where <lookup> (x, gamma)
+
+  check-ctor-arg(|role, ctor-name, gamma, ctx_td):
+    Ctor(x, ts) ->
+      <map(check-ctor-arg(|role, x, gamma, ctx_td))> ts
 
 rules // Type payload, other
 
   project-payload(|role):
-    (Type(t), Othr(), gamma, psi) ->
+    (Type(t), Othr(), gamma, psi, ctx_td) ->
       (Type(t), [], [])
 
 rules // Reversal for payload-gamma-psi triples

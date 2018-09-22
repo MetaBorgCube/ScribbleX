@@ -38,11 +38,31 @@ rules
     (node, a, ast, path, project-path) -> None()
 		with 
 			filename := <guarantee-extension(|"scrx")> path
-		; <global-to-local-all-module; debug; map(\ (mod, role) -> <write-local> (path, <new-role-file-name> (path, role, "scrx"), mod) \)> ast
+		; <global-to-local-all-module; map(\ (mod, role) -> <write-local> (path, <new-role-file-name> (path, role, "scrx"), mod) \)> ast
 
 rules
 
-  generate-idris:
+  generate-global-idris:
+    (node, a, ast, path, project-path) -> None()
+		with 
+			filename := <guarantee-extension(|"scrx")> path
+		; <global-to-local-all-module;
+		   map({ idr :
+		       \ (mod, role) -> None()
+		         where
+		           <write-local>
+		            (path,
+		             <new-role-file-name> (path, role, "scrx"),
+		             mod)
+		         ; idr := <scrx-to-idris> mod
+		         ; <write-local>
+		             (path,
+		              <new-role-file-name> (path, role, "idr"),
+		              idr) \ })> ast    
+
+rules
+
+  generate-local-idris:
     (node, a, ast, path, project-path) -> None()
     with
       idr := <scrx-to-idris> ast
@@ -53,7 +73,7 @@ rules // helpers
 	write-local:
 	  (path, fname, mod) -> None()
 		with
-			file := <debug; fopen> (fname, "w")
+			file := <fopen> (fname, "w")
 		; <fprintnl> (file, [<pp-ScribbleX-string> mod])
 		;	<fclose> file
 

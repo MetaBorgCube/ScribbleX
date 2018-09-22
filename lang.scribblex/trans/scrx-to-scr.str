@@ -9,7 +9,7 @@ imports
 rules
 
   scrx-to-scr:
-    Module(mname, tdefs, protocol) ->
+    Module(mname, imports, tdefs, protocol) ->
       ScribbleModule(mname, <lower-protocol> protocol)
 
 rules
@@ -89,6 +89,11 @@ rules
       <err-msg(|<concat-strings> ["Cannot lower free type identifier: ", x]); fail>
     where
       not(<lookup> (x, psi))
+
+  lower-payload:
+    (Type(Ctor(x, _)), _) ->
+      <err-msg(|<concat-strings> 
+        ["Cannot lower type constructor: ", x]); fail>
 
 rules
 

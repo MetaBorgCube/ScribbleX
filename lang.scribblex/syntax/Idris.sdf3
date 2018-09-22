@@ -13,6 +13,8 @@ import Control.ST
 import Control.ST.ImplicitCall
 import Data.String
 
+<Import*>
+
 <{DataDef "\n\n"}*>
 
 <Interface>
@@ -21,6 +23,8 @@ import Data.String
 -- idris-load-packages: ("contrib")
 -- End:
 >
+
+  Import.IImport = [import [{ID "."}+]]
 
   DataDef.Data = <data <ID> : Type where
   <{GADTK "\n"}*>>

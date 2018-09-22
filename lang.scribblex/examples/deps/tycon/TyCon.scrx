@@ -1,0 +1,9 @@
+module TyCon;
+
+import <idris> Lt;
+
+type <idris> Lt arity 2;
+
+global protocol TyCon(role A, role B) {
+  msg(x : Int, y : Int, lt : Lt(x, y)) from A to B;
+}

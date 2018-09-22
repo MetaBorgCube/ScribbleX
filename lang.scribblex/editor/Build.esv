@@ -3,6 +3,9 @@ module Build
 menus
   
   menu: "Generate" (openeditor)
-  	action: "Global-to-local"   = generate-global-to-local (source)
-  	action: "Lower to Scribble" = generate-scribble        (source)
-  	action: "Generate Idris"    = generate-idris           (source)
+    action: "Idris"             = generate-global-idris    (source)
+  	action: "Local ScribbleX"   = generate-global-to-local (source)
+  	action: "Scribble"          = generate-scribble        (source)
+  	submenu: "Local" (openeditor)
+  	  action: "Idris"           = generate-local-idris     (source)
+  	end

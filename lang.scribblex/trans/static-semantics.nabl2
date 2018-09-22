@@ -8,6 +8,6 @@ rules
 
   init ^ (s) := new s.
 
-  [[ Module(_,_,_) ^ (s) ]] :=
+  [[ Module(_,_,_,_) ^ (s) ]] :=
     true.
 
