@@ -9,7 +9,7 @@ imports
 rules
 
   scrx-to-scr:
-    Module(mname, protocol) ->
+    Module(mname, tdefs, protocol) ->
       ScribbleModule(mname, <lower-protocol> protocol)
 
 rules
@@ -28,7 +28,7 @@ rules
     (Message(mname, payload, from, to, i_next), psi) ->
       Message(mname, payload', from, to, <lower-opt> (i_next, <concat> [psi', psi]))
     where
-      (payload', psi') := <foldr(!([], []), union-lower-payload(|psi))> payload
+      (payload', psi') := <foldl(union-lower-payload(|psi)); rev> (payload, ([], []))
   
   lower:
     (Choice(role, interaction, ors), psi) ->
@@ -62,9 +62,9 @@ rules
   
   union-lower-payload(|psi):
     (q, (payload', psi')) ->
-      ([q'|payload'], <conc> (psi'', psi'))
+      ([q'|payload'], <union> (psi'', psi'))
     where
-      (q', psi'') := <lower-payload> (q, psi)
+      (q', psi'') := <lower-payload> (q, <union> (psi, psi'))
 
 rules
 
@@ -96,3 +96,9 @@ rules
     (role_from, i, rs) ->
       <foldr(!i, \ (role_to, i_acc) -> 
         Message(<concat-strings> ["c", role_from, role_to, <int-to-string> n], [], role_from, role_to, Some(i_acc)) \)> rs
+
+rules
+  
+  rev:
+    (payloads, psi) ->
+      (<reverse> payloads, <reverse> psi)

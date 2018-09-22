@@ -23,8 +23,8 @@ rules
       <+ result := FAILS()
 
   global-to-local-all-module:
-    Module(mname, protocol) ->
-      <g2l-all-protocol; map(\ (lp, role) -> (Module(<concat-strings> [mname, "_", role], lp), role) \)> protocol
+    Module(mname, tdefs, protocol) ->
+      <g2l-all-protocol; map(\ (lp, role) -> (Module(<concat-strings> [mname, "_", role], tdefs, lp), role) \)> protocol
 
 rules
 
@@ -43,21 +43,27 @@ rules
       Some(To(mname, payload', to, <project-opt> (i_next, r, <conc> (gamma', gamma), <conc> (psi', psi), rho)))
     where
       <eq> (r, from); not(<eq> (r, to))
-    ; (payload', gamma', psi') := <foldr(!([], [], []), union-project-payload(|r, Send(), gamma, psi))> payload
+    ; (payload', gamma', psi') :=
+        <foldl(union-project-payload(|r, Send(), gamma, psi)); rev>
+          (payload, ([], [], []))
   
   project:
     (Message(mname, payload, from, to, i_next), r, gamma, psi, rho) ->
       Some(From(mname, payload', from, <project-opt> (i_next, r, <conc> (gamma', gamma), <conc> (psi', psi), rho)))
     where
       <eq> (r, to); not(<eq> (r, from))
-    ; (payload', gamma', psi') := <foldr(!([], [], []), union-project-payload(|r, Recv(), gamma, psi))> payload
+    ; (payload', gamma', psi') :=
+        <foldl(union-project-payload(|r, Recv(), gamma, psi)); rev>
+          (payload, ([], [], []))
   
   project:
     (Message(mname, payload, from, to, i_next), r, gamma, psi, rho) ->
       <project-opt> (i_next, r, <conc> (gamma', gamma), <conc> (psi', psi), rho)
     where
       not(<eq> (r, to)); not(<eq> (r, from))
-    ; (_, gamma', psi') := <foldr(!([], [], []), union-project-payload(|r, Othr(), gamma, psi))> payload
+    ; (_, gamma', psi') :=
+        <foldl(union-project-payload(|r, Othr(), gamma, psi)); rev>
+          (payload, ([], [], []))
 
   project:
     (Message(mname, payload, from, to, i_next), r, gamma, psi, rho) ->
@@ -104,9 +110,9 @@ rules
 
   union-project-payload(|role, status, gamma, psi):
     (q, (payload', gamma', psi')) ->
-      ([q'|payload'], <conc> (gamma'', gamma'), <conc> (psi'', psi'))
+      ([q'|payload'], <union> (gamma'', gamma'), <union> (psi'', psi'))
     where
-      (q', gamma'', psi'') := <project-payload(|role)> (q, status, gamma, psi)
+      (q', gamma'', psi'') := <project-payload(|role)> (q, status, <union> (gamma, gamma'), <union> (psi, psi'))
 
 rules // Singleton payload
 
@@ -168,3 +174,11 @@ rules // Type payload, other
   project-payload(|role):
     (Type(t), Othr(), gamma, psi) ->
       (Type(t), [], [])
+
+rules // Reversal for payload-gamma-psi triples
+
+  rev:
+    (payloads, gamma, psi) ->
+      (<reverse> payloads,
+       <reverse> gamma,
+       <reverse> psi)

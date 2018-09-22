@@ -23,24 +23,26 @@ rules
       <+ result := FAILS()
 
   scrx-to-idris:
-    Module(mname, protocol@Local(_, roles, _)) ->
-      <trans-protocol> protocol
+    Module(mname, tdefs, protocol@Local(_, roles, _)) ->
+      <trans-protocol> (td_ctx, protocol)
     where // initialize counters used for fresh names
       <new-counter> "S"
     ; <new-counter> "payloadId"
     ; <new-counter> "C"
+    ; <new-counter> "paramId"
     ; <foldr(!(),
         \ (Role(x), _) ->
             <concat-strings; new-counter> ["choice_", x] \)>
         roles
+    ; td_ctx := <map(\ TDef(x, arity) -> (x, arity) \)> tdefs
 
 rules
 
   trans-protocol:
-    Local(pname, roles, interaction) ->
+    (td_ctx, Local(pname, roles, interaction)) ->
       IdrisModule(
         [Data("State", states')|choices'],
-        Interface(pname, [Param("m", ArrowT(<mk-type-id> "Type", <mk-type-id> "Type"))],
+        Interface(<ucfirst> pname, [Param("m", ArrowT(<mk-type-id> "Type", <mk-type-id> "Type"))],
           signatures'))
     where
       (signatures', states', choices') :=
@@ -49,6 +51,7 @@ rules
            interaction,
            [],
            [],
+           td_ctx,
            [Sig("StateT", ArrowT(<mk-type-id> "State", <mk-type-id> "Type")),
             Sig("start", <mk-strans-nobr> (Id("Var"), NilL(), 
                                            Brack(Fun("l", List([STCons(Id("l"), App(Id("StateT"), Id("Ready")))])))))],
@@ -59,25 +62,25 @@ rules
 rules
 
   trans-maybe-interaction:
-    (pname, None(), ctx, rctx, signatures, states, choices, prev-state) ->
+    (pname, None(), ctx, rctx, td_ctx, signatures, states, choices, prev-state) ->
       (signatures, states, choices)
   
   trans-maybe-interaction:
-    (pname, Some(i), ctx, rctx, signatures, states, choices, prev-state) ->
+    (pname, Some(i), ctx, rctx, td_ctx, signatures, states, choices, prev-state) ->
       <trans-interaction>
-        (pname, i, ctx, rctx, signatures, states, choices, prev-state)
+        (pname, i, ctx, rctx, td_ctx, signatures, states, choices, prev-state)
       
 rules
   
   trans-interaction:
     (pname,
      From(msg, payload, from-role, opt-cont),
-     ctx, rctx, signatures, states, choices, prev-state) ->
+     ctx, rctx, td_ctx, signatures, states, choices, prev-state) ->
       (signatures', states', choices')
       where
         not(Some(Continue(_)) := opt-cont)
       ; (tys, ctx') :=
-          <trans-rcv-interaction> (msg, payload, ctx)
+          <trans-rcv-interaction> (msg, payload, ctx, td_ctx)
       ; (state', new-state) := <concat; new-state> [ctx, ctx']
       ; sig :=
           Sig(msg,
@@ -92,6 +95,7 @@ rules
              opt-cont,
              <concat> [ctx, ctx'],
              rctx,
+             td_ctx,
              <concat> [signatures, [sig]],
              <concat> [states, [state']],
              choices,
@@ -100,11 +104,11 @@ rules
   trans-interaction:
     (pname,
      From(msg, payload, from-role, Some(Continue(r))),
-     ctx, rctx, signatures, states, choices, prev-state) ->
+     ctx, rctx, td_ctx, signatures, states, choices, prev-state) ->
       (<concat> [signatures, [sig]], states, choices)
       where
         (tys, ctx') :=
-          <trans-rcv-interaction> (msg, payload, ctx)
+          <trans-rcv-interaction> (msg, payload, ctx, td_ctx)
       ; sig :=
           Sig(msg,
             PiTBr("l", <mk-type-id> "Var",
@@ -115,24 +119,24 @@ rules
                    List([STCons(Id("l"), App(Id("StateT"), <lookup> (r, rctx)))]))))))
   
   trans-rcv-interaction:
-    (msg, payload, ctx) ->
-      <foldr(!([], []),
-             { ctx'', ty' :
+    (msg, payload, ctx, td_ctx) ->
+      <foldl({ ctx'', ty' :
              \ (pl, (tys', ctx')) ->
                  ([ty'|tys'], <concat> [ctx'', ctx'])
                where 
                  (ty', ctx'') :=
-                   <trans-rcv-payload> (pl, <concat> [ctx, ctx']) \ })> payload
+                   <trans-rcv-payload> (pl, <concat> [ctx, ctx'], td_ctx) \ }); rev>
+        (payload, ([], []))
   
   trans-interaction:
     (pname,
      To(msg, payload, from-role, opt-cont),
-     ctx, rctx, signatures, states, choices, prev-state) ->
+     ctx, rctx, td_ctx, signatures, states, choices, prev-state) ->
       (signatures', states', choices')
     where
       not(Some(Continue(_)) := opt-cont)
     ; (tys, ctx') :=
-        <trans-snd-interaction> (msg, payload, ctx)
+        <trans-snd-interaction> (msg, payload, ctx, td_ctx)
     ; (state', new-state) := <concat; new-state> [ctx, ctx']
     ; sig :=
         Sig(msg,
@@ -149,6 +153,7 @@ rules
            opt-cont,
            <concat> [ctx, ctx'],
            rctx,
+           td_ctx,
            <concat> [signatures, [sig]],
            <concat> [states, [state']],
            choices,
@@ -158,11 +163,11 @@ rules
   trans-interaction:
     (pname,
      To(msg, payload, from-role, Some(Continue(r))),
-     ctx, rctx, signatures, states, choices, prev-state) ->
+     ctx, rctx, td_ctx, signatures, states, choices, prev-state) ->
       (<concat> [signatures, [sig]], states, choices)
     where
       (tys, ctx') :=
-        <trans-snd-interaction> (msg, payload, ctx)
+        <trans-snd-interaction> (msg, payload, ctx, td_ctx)
     ; sig :=
         Sig(msg,
             <parameterize-by-payloads> 
@@ -174,19 +179,19 @@ rules
                tys))
 
   trans-snd-interaction:
-    (msg, payload, ctx) ->
-      <foldr(!([], []),
-             { ctx'', ty' :
+    (msg, payload, ctx, td_ctx) ->
+      <foldl({ ctx'', ty' :
              \ (pl, (tys', ctx')) ->
                  ([ty'|tys'], <concat> [ctx'', ctx'])
                where
                  (ty', ctx'') :=
-                   <trans-snd-payload> (pl, <concat> [ctx, ctx']) \ })> payload
+                   <trans-snd-payload> (pl, <concat> [ctx, ctx'], td_ctx) \ }); rev>
+        (payload, ([], []))
 
   trans-interaction: // FIXME: handle case where interaction branches are none
     (pname,
      Choice(role, Some(interaction), or-choices),
-     ctx, rctx, signatures, states, choices, prev-state) ->
+     ctx, rctx, td_ctx, signatures, states, choices, prev-state) ->
       (<concat> [signatures, [sig], signatures1],
        <concat> [states, states1],
        <concat> [choices, choices', choices1])
@@ -196,7 +201,7 @@ rules
         <trans-branch>
           (pname,
            interaction,
-           ctx, rctx, signatures, states, choices, prev-state)
+           ctx, rctx, td_ctx, signatures, states, choices, prev-state)
     ; (signatures1, states1, choices1, new-states) :=
         <foldr(!(signatures0, states0, choices0, <unpack-opt-new-state> opt-new-state0),
           { signatures'', states'', choices'', opt-new-state'' :
@@ -210,7 +215,7 @@ rules
                 <trans-branch>
                   (pname,
                    i,
-                   ctx, rctx, signatures, states, choices, prev-state) \ })>
+                   ctx, rctx, td_ctx, signatures, states, choices, prev-state) \ })>
           or-choices
     ; sig-name-base := <concat-strings> ["choice_", role]
     ; postfix := <get-counter; int-to-string> sig-name-base
@@ -223,7 +228,7 @@ rules
            <new-choice> (choice-name, new-states), prev-state)
 
   local-gen-choice-sig:
-    (sig-name, choice-name, new-states@[(new-state, tys)], _, prev-state) ->
+    (sig-name, choice-name, new-states@[(msg, new-state, tys)], _, prev-state) ->
       (Sig(sig-name,
           <parameterize-by-payloads> 
             (<mk-strans>
@@ -254,7 +259,7 @@ rules
   trans-interaction: // FIXME: handle case where interaction branches are none
     (pname,
      Choice(role, Some(interaction), or-choices),
-     ctx, rctx, signatures, states, choices, prev-state) ->
+     ctx, rctx, td_ctx, signatures, states, choices, prev-state) ->
       (<concat> [signatures, [sig], signatures1],
        <concat> [states, states1],
        <concat> [choices, choices', choices1])
@@ -264,7 +269,7 @@ rules
         <trans-branch>
           (pname,
            interaction,
-           ctx, rctx, signatures, states, choices, prev-state)
+           ctx, rctx, td_ctx, signatures, states, choices, prev-state)
     ; (signatures1, states1, choices1, new-states) :=
         <foldr(!(signatures0, states0, choices0, <unpack-opt-new-state> opt-new-state0),
           { signatures'', states'', choices'', opt-new-state'' :
@@ -278,7 +283,7 @@ rules
                 <trans-branch>
                   (pname,
                    i,
-                   ctx, rctx, signatures, states, choices, prev-state) \ })>
+                   ctx, rctx, td_ctx, signatures, states, choices, prev-state) \ })>
           or-choices
     ; sig-name-base := <concat-strings> ["choice_", role]
     ; postfix := <get-counter; int-to-string> sig-name-base
@@ -306,7 +311,7 @@ rules
       [choice])
   
   non-local-gen-choice-sig:
-    (sig-name, choice-name, new-states@[(new-state, tys)], _, prev-state) ->
+    (sig-name, choice-name, new-states@[(msg, new-state, tys)], _, prev-state) ->
       (Sig(sig-name,
         PiTBr("l", <mk-type-id> "Var",
           <mk-strans>
@@ -317,7 +322,7 @@ rules
 
   choice-case:
     (K(choice-case-name, _, _, _),
-     (new-state, tys)) ->
+     (msg, new-state, tys)) ->
       Case(App(choice-case-name, <map(payload-to-id)> tys), new-state)
     where
       <reset-counter> "payloadId"
@@ -346,10 +351,11 @@ rules
   trans-interaction:
     (pname,
      Rec(r, opt-interaction),
-     ctx, rctx, signatures, states, choices, prev-state) ->
+     ctx, rctx, td_ctx, signatures, states, choices, prev-state) ->
       <trans-maybe-interaction>
         (pname, opt-interaction,
-         ctx, <concat> [rctx, [("r", prev-state)]], signatures, states, choices, prev-state)
+         ctx, <concat> [rctx, [("r", prev-state)]], td_ctx,
+         signatures, states, choices, prev-state)
   
 //  trans-interaction:
 //    (pname,
@@ -371,39 +377,39 @@ rules // Translation of branch of conditional
   trans-branch: // Case 'To' followed by a recursive call
     (pname,
      To(msg, payload, from-role, Some(Continue(r))),
-     ctx, rctx, signatures, states, choices, prev-state) ->
+     ctx, rctx, td_ctx, signatures, states, choices, prev-state) ->
       ([],
        [],
        [],
-       Some((<lookup> (r, rctx), tys)))
+       Some((msg, <lookup> (r, rctx), tys)))
     where
       (tys, ctx') :=
-        <trans-snd-interaction> (msg, payload, ctx)
+        <trans-snd-interaction> (msg, payload, ctx, td_ctx)
 
   trans-branch: // Case 'From' followed by a recursive call
     (pname,
      From(msg, payload, from-role, Some(Continue(r))),
-     ctx, rctx, signatures, states, choices, prev-state) ->
+     ctx, rctx, td_ctx, signatures, states, choices, prev-state) ->
       ([],
        [],
        [],
-       Some((<lookup> (r, rctx), tys)))
+       Some((msg, <lookup> (r, rctx), tys)))
     where
       (tys, ctx') :=
-        <trans-rcv-interaction> (msg, payload, ctx)
+        <trans-rcv-interaction> (msg, payload, ctx, td_ctx)
   
   trans-branch: // Case 'To' followed by anything else but a recursive call
     (pname,
      To(msg, payload, from-role, opt-cont),
-     ctx, rctx, signatures, states, choices, prev-state) ->
+     ctx, rctx, td_ctx, signatures, states, choices, prev-state) ->
       (<diff> (signatures', signatures),
        <diff> (states', states),
        <diff> (choices', choices),
-       Some((new-state, tys)))
+       Some((msg, new-state, tys)))
     where
       not(Some(Continue(_)) := opt-cont)
     ; (tys, ctx') :=
-        <trans-snd-interaction> (msg, payload, ctx)
+        <trans-snd-interaction> (msg, payload, ctx, td_ctx)
     ; (state', new-state) := <concat; new-state> [ctx, ctx']
     ; (signatures', states', choices') :=
         <trans-maybe-interaction> 
@@ -411,6 +417,7 @@ rules // Translation of branch of conditional
            opt-cont,
            <concat> [ctx, ctx'],
            rctx,
+           td_ctx,
            <concat> [signatures],
            <concat> [states, [state']],
            choices,
@@ -419,15 +426,15 @@ rules // Translation of branch of conditional
   trans-branch: // Case 'From' followed by anything else but a recursive call
     (pname,
      From(msg, payload, from-role, opt-cont),
-     ctx, rctx, signatures, states, choices, prev-state) ->
+     ctx, rctx, td_ctx, signatures, states, choices, prev-state) ->
       (<diff> (signatures', signatures),
        <diff> (states', states),
        <diff> (choices', choices),
-       Some((new-state, tys)))
+       Some((msg, new-state, tys)))
     where
       not(Some(Continue(_)) := opt-cont)
     ; (tys, ctx') :=
-        <trans-rcv-interaction> (msg, payload, ctx)
+        <trans-rcv-interaction> (msg, payload, ctx, td_ctx)
     ; (state', new-state) := <concat; new-state> [ctx, ctx']
     ; (signatures', states', choices') :=
         <trans-maybe-interaction> 
@@ -435,6 +442,7 @@ rules // Translation of branch of conditional
            opt-cont,
            <concat> [ctx, ctx'],
            rctx,
+           td_ctx,
            <concat> [signatures],
            <concat> [states, [state']],
            choices,
@@ -443,7 +451,7 @@ rules // Translation of branch of conditional
   trans-branch:
     (pname,
      Continue(_),
-     ctx, rctx, signatures, states, choices, prev-state) ->
+     ctx, rctx, td_ctx, signatures, states, choices, prev-state) ->
       ([],
        [],
        [],
@@ -452,22 +460,22 @@ rules // Translation of branch of conditional
 rules // Translation of payload reception
 
   trans-rcv-payload:
-    (Type(Int()), _) ->
+    (Type(Int()), _, _) ->
       (SimpleType(Id("Int")), [])
 
   trans-rcv-payload:
-    (Type(String()), _) ->
+    (Type(String()), _, _) ->
       (SimpleType(Id("String")), [])
 
   trans-rcv-payload: // FIXME: t should not be a reference to a singleton type
-    (Ston(x, t), ctx) ->
+    (Ston(x, t), ctx, td_ctx) ->
       (SingletonDecl(x, ty'), [(x, ty')|ctx'])
     where
-      (SimpleType(ty'), ctx') := <trans-rcv-payload> (Type(t), ctx)
+      (SimpleType(ty'), ctx') := <trans-rcv-payload> (Type(t), ctx, td_ctx)
     ; <new-counter> x
   
   trans-rcv-payload:
-    (Type(Id(x)), ctx) ->
+    (Type(Id(x)), ctx, _) ->
       (SimpleType(Brack(DPairT(new-x,
                                  <lookup> (x, ctx),
                                  Eq(Id(new-x), Id(x))))),
@@ -478,22 +486,22 @@ rules // Translation of payload reception
 rules // Translation of payload transmission
 
   trans-snd-payload:
-    (Type(Int()), _) ->
+    (Type(Int()), _, _) ->
       (SimpleType(Id("Int")), [])
 
   trans-snd-payload:
-    (Type(String()), _) ->
+    (Type(String()), _, _) ->
       (SimpleType(Id("String")), [])
 
   trans-snd-payload: // assumption: cannot type a type variable by a singleton type
-    (Ston(x, t), ctx) ->
+    (Ston(x, t), ctx, td_ctx) ->
       (SingletonDecl(x, ty'), [(x, ty')|ctx'])
     where
-      (SimpleType(ty'), ctx') := <trans-snd-payload> (Type(t), ctx)
+      (SimpleType(ty'), ctx') := <trans-snd-payload> (Type(t), ctx, td_ctx)
     ; <new-counter> x
 
   trans-snd-payload:
-    (Type(Id(x)), ctx) ->
+    (Type(Id(x)), ctx, _) ->
       (SingletonRef(x, <lookup> (x, ctx)), [])
 
 rules // Generalize final state by variables being received; 'from' case
@@ -523,7 +531,7 @@ rules // Generalize final state by variables being received; 'from' case
           List([STCons(Id("l"), App(Id("StateT"),
             Brack(
               Case(Id("r"),
-                [Case(Brack(Tuple(<map(ty-to-pat)> tys)), state)]))))])))
+                [Case(Brack(App("MkDPair", <map(ty-to-pat)> tys)), state)]))))])))
   
   ty-to-pat:
     SingletonDecl(x, _) -> Id(x)
@@ -547,6 +555,8 @@ rules // Parameterize command by payload being sent; 'to' case
         <init;
          foldr(!<parameterize-by-payload-br> (<last> tys, trans),
                parameterize-by-payload)> tys)
+    where
+      <reset-counter> "paramId"
 
   parameterize-by-payload-br:
     (SimpleType(ty), trans) ->
@@ -555,6 +565,9 @@ rules // Parameterize command by payload being sent; 'to' case
   parameterize-by-payload-br:
     (SingletonRef(x, ty), trans) ->
       PiTBr(x, ExprT(ty), trans)
+    where
+      new-x := <concat-strings> [x, <next-counter; int-to-string> "paramId"]
+    ; <next-counter> "paramId"
 
   parameterize-by-payload-br:
     (SingletonDecl(x, ty), trans) ->
@@ -570,16 +583,19 @@ rules // Parameterize command by payload being sent; 'to' case
 
   parameterize-by-payload:
     (SingletonRef(x, ty), trans) ->
-      PiT(x, ExprT(ty), trans)
+      PiT(x, ExprT(Brack(DPairT(new-x, ty, Eq(Id(new-x), Id(x))))), trans)
+    where
+      new-x := <concat-strings> [x, <next-counter; int-to-string> "paramId"]
+    ; <next-counter> "paramId"
 
   unpack:
-    SimpleType(ty) -> ty
+    SimpleType(ty) -> ("_", ty)
   
   unpack:
-    SingletonDecl(_, ty) -> ty
+    SingletonDecl(x, ty) -> (x, ty)
 
   unpack:
-    SingletonRef(_, ty) -> ty
+    SingletonRef(x, ty) -> (x, ty)
 
 rules
 
@@ -587,13 +603,16 @@ rules
     [] -> Unit()
   
   payload-types-to-return-types:
-    [ty] -> <unpack> ty
+    [ty] -> <unpack; Snd> ty
   
   payload-types-to-return-types:
     tys@[_|[_|_]] ->
       Brack(<init;
-             foldr(!<last; unpack> tys, 
-                   \ (ty, prod) -> Pair(<unpack> ty, prod) \)> tys)
+             foldr(!<last; unpack; Snd> tys, 
+                   { name, rty :
+                   \ (ty, prod) -> DPairT(name, rty, prod)
+                     where
+                       (name, rty) := <unpack> ty \ })> tys)
 
 rules // State constructor and name
 
@@ -620,15 +639,13 @@ rules // Choice constructor and name
       Data(choice-name,
         <map(
           { choice-case-name :
-          \ (_, tys) ->
-              K(choice-case-name, <parameterize-by-payloads> tys, choice-name, [])
-            where
-              choice-case-name := <mk-choice-id> () \ })> new-states)
+          \ (msg, _, tys) ->
+              K(<ucfirst> msg, <parameterize-by-payloads> tys, choice-name, []) \ })> new-states)
 
-  mk-choice-id:
-    () -> <concat-strings> ["C", <get-counter; int-to-string> "C"]
-    with
-      <next-counter> "C"
+//  mk-choice-id:
+//    () -> <concat-strings> ["C", <get-counter; int-to-string> "C"]
+//    with
+//      <next-counter> "C"
 
 rules // Parameterize a data type by a context of singletons
 
@@ -683,3 +700,12 @@ rules // Helpers
       
   prev-counter =
     ?c; get-counter; dec; where(<set-counter> (c, <id>))
+
+  rev:
+    (tys, ctx) ->
+      (<reverse> tys, <reverse> ctx)
+  
+  // Borrowed from https://github.com/metaborg/relations/blob/develop/relations/trans/lib/string.str
+	ucfirst-chars: [c|rest] -> [<to-upper>c|rest]
+  ucfirst = string-as-chars(ucfirst-chars)
+

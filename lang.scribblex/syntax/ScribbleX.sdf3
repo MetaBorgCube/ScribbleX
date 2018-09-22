@@ -12,7 +12,15 @@ context-free syntax
   
   Start.Module = <module <ID>;
 
+<TypeDef*>
+
 <Protocol>>
+
+///////////////
+// TYPE DEFS //
+///////////////
+
+  TypeDef.TDef = [type <idris> [ID] arity [INT];]
 
 /////////////////////
 // GLOBAL PROTOCOL //
@@ -82,6 +90,7 @@ context-free syntax
   Type.Int = <Int>
   Type.String = <String>
   Type.Id = ID
+  Type.Ctor = <<ID>(<{Type ","}*>)>
   
 lexical syntax
 
