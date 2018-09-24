@@ -12,9 +12,9 @@ context-free syntax
   
   Start.Module = <module <ID>;
 
-<Import*>
+<{Import "\n"}*>
 
-<TypeDef*>
+<{TypeDef "\n"}*>
 
 <Protocol>>
 

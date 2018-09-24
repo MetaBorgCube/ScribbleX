@@ -13,7 +13,7 @@ import Control.ST
 import Control.ST.ImplicitCall
 import Data.String
 
-<Import*>
+<{Import "\n"}*>
 
 <{DataDef "\n\n"}*>
 

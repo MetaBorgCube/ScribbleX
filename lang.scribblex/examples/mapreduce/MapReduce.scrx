@@ -1,0 +1,21 @@
+module MapReduce;
+
+type <idris> Eq arity 2;
+type <idris> Append arity 2;
+type <idris> F arity 1;
+type <idris> G arity 2;
+
+global protocol MapReduce(role Client,
+                          role Server,
+                          role Worker1,
+                          role Worker2,
+                          role Aggregator) {
+  payload(d : String) from Client to Server;
+  payload1(d1 : String) from Server to Worker1;
+  payload2(d2 : String) from Server to Worker2;
+  aggr(Append(d1, d2)) from Server to Aggregator;
+  work1(r1 : String, Eq(r1, F(d1))) from Worker1 to Aggregator;
+  work2(r2 : String, Eq(r2, F(d2))) from Worker2 to Aggregator;
+  done(r3 : String, Eq(r3, G(r1, r2))) from Aggregator to Server;
+  notify(r3) from Server to Client;
+}

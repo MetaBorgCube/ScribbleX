@@ -65,10 +65,10 @@ rules
   
   project:
     (Message(mname, payload, from, to, i_next), r, gamma, psi, rho, ctx_td) ->
-      <project-opt> (i_next, r, <conc> (gamma', gamma), <conc> (psi', psi), rho, ctx_td)
+      <project-opt> (i_next, r, gamma, <conc> (psi', psi), rho, ctx_td)
     where
       not(<eq> (r, to)); not(<eq> (r, from))
-    ; (_, gamma', psi') :=
+    ; (_, _, psi') :=
         <foldl(union-project-payload(|r, Othr(), gamma, psi, ctx_td)); rev>
           (payload, ([], [], []))
 
@@ -119,9 +119,11 @@ rules
 
   union-project-payload(|role, status, gamma, psi, ctx_td):
     (q, (payload', gamma', psi')) ->
-      ([q'|payload'], <union> (gamma'', gamma'), <union> (psi'', psi'))
+      (<concat> [[q'|payload'], delta],
+       <union> (gamma'', gamma'),
+       <union> (psi'', psi'))
     where
-      (q', gamma'', psi'') :=
+      (q', gamma'', psi'', delta) :=
         <project-payload(|role)>
           (q, status, <union> (gamma, gamma'), <union> (psi, psi'), ctx_td)
 
@@ -129,29 +131,29 @@ rules // Singleton payload
 
   project-payload(|role):
     (Ston(x, t), s, gamma, psi, ctx_td) ->
-      (Ston(x, t'), [(x, t')|gamma'], [(x, t')|psi'])
+      (Ston(x, t'), [(x, t')|gamma'], [(x, t')|psi'], delta)
     where
       <elem> (s, [Send(), Recv()])
-    ; (Type(t'), gamma', psi') := <project-payload(|role)> (Type(t), s, gamma, psi, ctx_td)
+    ; (Type(t'), gamma', psi', delta) := <project-payload(|role)> (Type(t), s, gamma, psi, ctx_td)
 
   project-payload(|role):
     (Ston(x, t), Othr(), gamma, psi, ctx_td) ->
-      (Ston(x, t'), gamma', [(x, t')|psi'])
+      (Ston(x, t'), gamma', [(x, t')|psi'], delta)
     where
-      (Type(t'), gamma', psi') :=
+      (Type(t'), gamma', psi', delta) :=
         <project-payload(|role)> (Type(t), Othr(), gamma, psi, ctx_td)
 
 rules // Type payload, sending
 
   project-payload(|role):
     (Type(t), Send(), gamma, psi, ctx_td) -> 
-      (Type(t), [], [])
+      (Type(t), [], [], [])
     where
       <elem> (t, [Int(), String()])
 
   project-payload(|role):
     (Type(Id(x)), Send(), gamma, psi, ctx_td) -> 
-      (Type(Id(x)), [], [])
+      (Type(Id(x)), [], [], [])
     where <lookup> (x, gamma)
 
   project-payload(|role):
@@ -165,14 +167,14 @@ rules // Type payload, receiving
 
   project-payload(|role):
     (Type(t), Recv(), gamma, psi, ctx_td) -> 
-      (Type(t), [], [])
+      (Type(t), [], [], [])
     where
       <elem> (t, [Int(), String()]) <+
       (Id(x) := t; <lookup> (x, gamma))
 
   project-payload(|role):
     (Type(Id(x)), Recv(), gamma, psi, ctx_td) ->
-      (Ston(x, t), [(x, t)], [])
+      (Ston(x, t), [(x, t)], [], [])
     where
       not(<lookup> (x, gamma))
     ; t := <lookup> (x, psi)
@@ -186,13 +188,15 @@ rules // Type payload, receiving
     where
       not(<lookup> (x, psi))
 
-rules // Constructor payload
+rules // Constructor payload, receiving
   
   project-payload(|role):
-    (Type(Ctor(x, ts)), _, gamma, psi, ctx_td) ->
-      (Type(Ctor(x, ts)), [], [])
+    (Type(Ctor(x, ts)), Recv(), gamma, psi, ctx_td) ->
+      (Type(Ctor(x, ts)), gamma', [], delta)
     where
-      <map(check-ctor-arg(|role, x, gamma, ctx_td))> ts
+      (delta, gamma') :=
+        <foldr(!([], []),
+               check-ctor-arg(|role, x, gamma, psi, ctx_td))> ts
     ; ((arity := <lookup> (x, ctx_td)) <+
        (err-msg(|<concat-strings>
          ["The actor ", role, " refers to an undeclared type constructor: ", x]); fail))
@@ -204,26 +208,79 @@ rules // Constructor payload
           " arguments, but is given ",
           <length; int-to-string> ts]); fail))
 
+rules // Constructor payload, sending
+  
+  project-payload(|role):
+    (Type(Ctor(x, ts)), Send(), gamma, psi, ctx_td) ->
+      (Type(Ctor(x, ts)), gamma', [], delta)
+    where
+      (delta, gamma') :=
+        <foldr(!([], []),
+               check-ctor-arg(|role, x, gamma, psi, ctx_td))> ts
+    ; ((arity := <lookup> (x, ctx_td)) <+
+       (err-msg(|<concat-strings>
+         ["The actor ", role, " refers to an undeclared type constructor: ", x]); fail))
+    ; ((<eq> (arity, <length; int-to-string> ts)) <+
+       (err-msg(|<concat-strings>
+         ["The actor ", role,
+          " refers to a type constructor ", x, 
+          " that expects ", arity,
+          " arguments, but is given ",
+          <length; int-to-string> ts]); fail))
+    ; (  (<eq> (gamma', []))
+      <+ (!gamma'; ?[(y, _)|_];
+          err-msg(|<concat-strings>
+            ["The actor ", role,
+             " refers to a type variable ", y,
+             " that has not been introduced, in the type constructor ", x]);
+          fail)) 
+
 rules // Constructor argument type projection
 
-  check-ctor-arg(|role, ctor-name, gamma, ctx_td):
-    t -> t
+  check-ctor-arg(|role, ctor-name, gamma, psi, ctx_td):
+    (t, (delta, gamma0)) -> (delta, gamma0)
     where
       <elem> (t, [Int(), String()])
 
-  check-ctor-arg(|role, ctor-name, gamma, ctx_td):
-    Id(x) -> Id(x)
-    where <lookup> (x, gamma)
+  check-ctor-arg(|role, ctor-name, gamma, psi, ctx_td):
+    (Id(x), (delta, gamma0)) -> (delta, gamma0)
+    where
+      <lookup> (x, gamma)
 
-  check-ctor-arg(|role, ctor-name, gamma, ctx_td):
-    Ctor(x, ts) ->
-      <map(check-ctor-arg(|role, x, gamma, ctx_td))> ts
+  check-ctor-arg(|role, ctor-name, gamma, psi, ctx_td):
+    (Id(x), (delta, gamma0)) ->
+      (<concat> [delta, [Ston(x, t)]],
+       <concat> [gamma, [(x, t)]])
+    where
+      not(<lookup> (x, gamma))
+    ; (  (t := <lookup> (x, psi))
+      <+ (err-msg(|<concat-strings>
+           ["The actor ", role,
+            " refers to a singleton type variable ", x,
+            " that is unknown to the actor."])
+         ; fail) )
+
+  check-ctor-arg(|role, ctor-name, gamma, psi, ctx_td):
+    (Ctor(x, ts), (delta, gamma0)) ->
+      <foldr(!(delta, gamma0),
+             check-ctor-arg(|role, x, <concat> [gamma, gamma0], psi, ctx_td))> ts
+    where
+      ((arity := <lookup> (x, ctx_td)) <+
+       (err-msg(|<concat-strings>
+         ["The actor ", role, " refers to an undeclared type constructor: ", x]); fail))
+    ; ((<eq> (arity, <length; int-to-string> ts)) <+
+       (err-msg(|<concat-strings>
+         ["The actor ", role,
+          " refers to a type constructor ", x, 
+          " that expects ", arity,
+          " arguments, but is given ",
+          <length; int-to-string> ts]); fail))
 
 rules // Type payload, other
 
   project-payload(|role):
     (Type(t), Othr(), gamma, psi, ctx_td) ->
-      (Type(t), [], [])
+      (Type(t), [], [], [])
 
 rules // Reversal for payload-gamma-psi triples
 
