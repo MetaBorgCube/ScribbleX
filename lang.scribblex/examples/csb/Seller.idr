@@ -14,7 +14,7 @@ import Boot
 mutual
   protocol : (ConsoleIO io, CSB_S io) => STrans io () [] (const [])
   protocol = do
-    putStrLn "[starting ...]"
+    putStrLn "[waiting for customer to connect ...]"
     st <- start
     rec_protocol st
 
@@ -24,7 +24,7 @@ mutual
                    [l ::: StateT {m=io} Ready]
                    (const [])
   rec_protocol st = do
-    putStrLn "[listening for price request ...]"
+    putStrLn "[customer connected! waiting for product price request ...]"
     name <- reqPrice st
     putStrLn $ "[received price request for: \"" ++ name ++ "\" ...]"
     (let p = (if name == "plumbus" 
@@ -32,13 +32,14 @@ mutual
               else 5) in do
       putStrLn $ "[sending price info amount " ++ cast p ++ " ...]"
       priceInfo st p
-      putStrLn $ "[listening for buyer's decision ...]"
+      putStrLn $ "[listening for customer's decision ...]"
       c <- choice_C0 st
       case c of
-        Reject => 
+        Reject => do
+          putStrLn "[customer rejected the offer]"
           rec_protocol st
         Accept => do
-          putStrLn $ "[listening for ack transfer " ++ cast p ++ " ...]"
+          putStrLn $ "[customer accepted! waiting for bank acknowledgement of transfer ...]"
           ackTransfer st
           putStrLn "[DONE]"
           done st)
@@ -53,7 +54,7 @@ implementation (Sockets io, ConsoleIO io, ConsoleExcept String io, Monad io) => 
 
   start = do
     Right sock <- socket Stream | Left _ => failure "could not open socket"
-    Right _ <- bind sock Nothing 9442 | Left _ => failure "could not bind"
+    Right _ <- bind sock Nothing sellerPort | Left _ => failure "could not bind"
     Right _ <- listen sock | Left _ => failure "could not listen"
     Right sock' <- accept sock | Left _ => failure "could not accept"
     st <- new ()

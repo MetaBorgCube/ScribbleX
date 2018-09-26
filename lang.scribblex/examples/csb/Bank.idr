@@ -14,9 +14,9 @@ import Boot
 using (ConsoleExcept e, ConsoleIO io, CSB_B io)
   protocol : STrans io () [] (const [])
   protocol = do
-    putStrLn "[starting ...]"
+    putStrLn "[waiting for customer to connect ...]"
     st <- start
-    putStrLn "[listening for transfer request ...]"
+    putStrLn "[customer connected! waiting for transfer request ...]"
     p <- choice_C0 st
     putStrLn $ "[received transfer request for " ++ cast p ++ " funds ...]"
     putStrLn "[sending acknowledgement of transfer ...]"
@@ -32,7 +32,7 @@ implementation (Sockets io, ConsoleIO io, ConsoleExcept String io, Monad io) => 
 
   start = do
     Right sock <- socket Stream | Left _ => failure "could not open socket"
-    Right _ <- bind sock Nothing 9443 | Left _ => failure "could not bind"
+    Right _ <- bind sock Nothing bankPort | Left _ => failure "could not bind"
     Right _ <- listen sock | Left _ => failure "could not listen"
     Right sock' <- accept sock | Left _ => failure "could not accept"
     st <- new ()
@@ -51,7 +51,7 @@ implementation (Sockets io, ConsoleIO io, ConsoleExcept String io, Monad io) => 
     [sock0, sock] <- split st
     close sock; remove sock
     Right sock' <- socket Stream | Left _ => failure "could not open socket"
-    Right _ <- connect sock' (Hostname "localhost") 9442 | Left _ => failure "could not connect to seller"
+    Right _ <- connect sock' (Hostname "localhost") sellerPort | Left _ => failure "could not connect to seller"
     Right _ <- send sock' (cast p) | Left _ => failure "could not send ack"
     close sock'; remove sock'
     close sock0

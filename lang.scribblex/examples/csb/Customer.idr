@@ -14,6 +14,7 @@ import Boot
 mutual
   protocol : (ConsoleIO io, CSB_C io) => STrans io () [] (const [])
   protocol = do
+    putStrLn "[connecting to seller ...]"
     st <- start
     rec_protocol st
   
@@ -35,9 +36,10 @@ mutual
       "Accept" => do
         putStrLn "\n[letting the seller know you've accepted ...]"
         choice_C0 st Accept
-        putStrLn "\nPress [ENTER] to request transfer of funds: "
+        putStrLn "\nPress [ENTER] to request bank transfer: "
         getStr
         reqTransfer st (p ** Refl)
+        putStrLn "\n[DONE]"
         done st
       _ => do
         putStrLn "\n[letting the seller know you've rejected ...]"
@@ -54,7 +56,7 @@ implementation (Sockets io, ConsoleIO io, ConsoleExcept String io, Monad io) => 
 
   start = do
     Right sock <- socket Stream | Left _ => failure "could not open socket"
-    Right _ <- connect sock (Hostname "localhost") 9442 | Left _ => failure "could not connect socket"
+    Right _ <- connect sock (Hostname "localhost") sellerPort | Left _ => failure "could not connect to seller"
     pure sock
        
   reqPrice sock s = do
@@ -77,7 +79,7 @@ implementation (Sockets io, ConsoleIO io, ConsoleExcept String io, Monad io) => 
   reqTransfer sock0 (p ** Refl) = do
     close sock0
     Right sock <- socket Stream | Left _ => failure "could not open socket"
-    Right _ <- connect sock (Hostname "localhost") 9443 | Left _ => failure "could not connect to bank"
+    Right _ <- connect sock (Hostname "localhost") bankPort | Left _ => failure "could not connect to bank"
     Right _ <- call (send sock (cast p)) | Left _ => failure "could not send to bank"
     call (close sock)
     call (remove sock)
