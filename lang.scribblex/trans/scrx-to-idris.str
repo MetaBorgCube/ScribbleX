@@ -44,7 +44,7 @@ rules
         <map(\ Import(x) -> IImport(x) \)> imports,
         [Data("State", states')|choices'],
         Interface(<ucfirst> pname, [Param("m", ArrowT(<mk-type-id> "Type", <mk-type-id> "Type"))],
-          signatures'))
+          <concat> [signatures', [done-sig]]))
     where
       (signatures', states', choices') :=
         <trans-maybe-interaction> 
@@ -59,7 +59,28 @@ rules
            [K("Ready", None(), "State", [])],
            [],
            Id("Ready"))
-     
+    ; K(last-name, last-params, _, _) := <last> states' // hacky
+    ; done-sig :=
+        Sig("done",
+          PiT("l", <mk-type-id> "Var",
+            <mk-strans-nobr>
+              (Unit(),
+               List([STCons(Id("l"),
+                App(Id("StateT"),
+                  Brack(<parameterize-by-kparams> (Id(last-name), last-params))))]),
+               Brack(App(Id("const"), NilL())))))
+
+rules
+
+  parameterize-by-kparams:
+    (t, None()) -> t
+  
+  parameterize-by-kparams:
+    (t, Some(params)) ->
+      <foldr(!t,
+             \ (NamedParam(Param(x, _)), t') ->
+                App(t', Id(x)) \)> params
+
 rules
 
   trans-maybe-interaction:

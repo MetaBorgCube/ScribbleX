@@ -13,6 +13,8 @@ import Control.ST
 import Control.ST.ImplicitCall
 import Data.String
 
+%access public export
+
 <{Import "\n"}*>
 
 <{DataDef "\n\n"}*>
