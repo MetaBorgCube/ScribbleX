@@ -37,9 +37,9 @@ Running `make` from the command line will compile the Idris protocols for each o
 Running
 =======
 
-After compiling (see above), three binaries should have appeared:
+After compiling (see above), three binaries have appeared:
 1. `bank`
 2. `seller`
 3. `customer`
 
-Running each of these binaries in the order above from the command line will run the session typed communication protocol on your local machine, with interactive input/output via the command line.
+Running each of these binaries in this order from the command line will run the session typed communication protocol on your local machine, with interactive input/output.
