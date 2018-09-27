@@ -30,6 +30,7 @@ rules
     ; <reset-counter; new-counter> "payloadId"
     ; <reset-counter; new-counter> "C"
     ; <reset-counter; new-counter> "paramId"
+    ; <reset-counter; new-counter> "done"
     ; <foldr(!(),
         \ (Role(x), _) ->
             <concat-strings; reset-counter; new-counter> ["choice_", x] \)>
@@ -44,7 +45,7 @@ rules
         <map(\ Import(x) -> IImport(x) \)> imports,
         [Data("State", states')|choices'],
         Interface(<ucfirst> pname, [Param("m", ArrowT(<mk-type-id> "Type", <mk-type-id> "Type"))],
-          <concat> [signatures', [done-sig]]))
+          signatures'))
     where
       (signatures', states', choices') :=
         <trans-maybe-interaction> 
@@ -59,16 +60,6 @@ rules
            [K("Ready", None(), "State", [])],
            [],
            Id("Ready"))
-    ; K(last-name, last-params, _, _) := <last> states' // hacky
-    ; done-sig :=
-        Sig("done",
-          PiT("l", <mk-type-id> "Var",
-            <mk-strans-nobr>
-              (Unit(),
-               List([STCons(Id("l"),
-                App(Id("StateT"),
-                  Brack(<parameterize-by-kparams> (Id(last-name), last-params))))]),
-               Brack(App(Id("const"), NilL())))))
 
 rules
 
@@ -85,13 +76,36 @@ rules
 
   trans-maybe-interaction:
     (pname, None(), ctx, rctx, ctx_td, signatures, states, choices, prev-state) ->
-      (signatures, states, choices)
+      (<concat> [signatures, [done-sig]], states, choices)
+    where
+      done-sig :=
+        Sig(<decorate-done> "done",
+          PiT("l", <mk-type-id> "Var",
+            <mk-strans-nobr>
+              (Unit(),
+               List([STCons(Id("l"),
+                App(Id("StateT"),
+                  Brack(prev-state)))]),
+               Brack(App(Id("const"), NilL())))))
   
   trans-maybe-interaction:
     (pname, Some(i), ctx, rctx, ctx_td, signatures, states, choices, prev-state) ->
       <trans-interaction>
         (pname, i, ctx, rctx, ctx_td, signatures, states, choices, prev-state)
       
+  decorate-done:
+    s -> s
+    where
+      <eq> (<get-counter> "done", 0)
+    ; <next-counter> "done"
+  
+  decorate-done:
+    s -> <concat-strings> [s, <dec; int-to-string> d]
+    where
+      d := <get-counter> "done"
+    ; not(<eq> (d, 0))
+    ; <next-counter> "done"
+    
 rules
   
   trans-interaction:
@@ -525,9 +539,10 @@ rules // Constructor typing
       
   ctor-to-type:
     (Ctor(x, [t|ts]), ctx_td) ->
-      <foldr(!App(Id(x), <type-to-idris> (t, ctx_td)),
-             \ (t, ty) -> App(ty, <type-to-idris> (t, ctx_td)) \)>
-        ts
+      Brack(
+        <foldr(!App(Id(x), <type-to-idris> (t, ctx_td)),
+               \ (t, ty) -> App(ty, <type-to-idris> (t, ctx_td)) \)>
+          ts)
     where
       (  (arity := <lookup> (x, ctx_td))
       <+ (err-msg(|<concat-strings> ["Undeclared type constructor: ", x])))

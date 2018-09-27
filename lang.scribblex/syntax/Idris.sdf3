@@ -12,10 +12,9 @@ context-free syntax
 import Control.ST
 import Control.ST.ImplicitCall
 import Data.String
+<{Import "\n"}*>
 
 %access public export
-
-<{Import "\n"}*>
 
 <{DataDef "\n\n"}*>
 

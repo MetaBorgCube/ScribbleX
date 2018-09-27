@@ -1,13 +1,15 @@
 module IsPrice;
 
+import <idris> Aux;
 type <idris> IsPrice arity 2;
 
 global protocol IsPrice(role P, role Q, role R) {
-  price(x : Int) from P to R;
+  price(x : Int) from P to Q;
   name(y : String) from P to R;
   claim(z : IsPrice(x, y)) from P to Q;
   choice at Q {
     yes() from Q to R;
+    // G'
   } or {
     no()  from Q to R;
   }
