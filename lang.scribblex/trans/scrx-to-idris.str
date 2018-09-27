@@ -85,7 +85,7 @@ rules
               (Unit(),
                List([STCons(Id("l"),
                 App(Id("StateT"),
-                  Brack(prev-state)))]),
+                  prev-state))]),
                Brack(App(Id("const"), NilL())))))
   
   trans-maybe-interaction:
