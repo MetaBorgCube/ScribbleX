@@ -26,7 +26,7 @@ mutual
   rec_protocol st = do
     putStrLn "Enter product name:"
     name <- getStr
-    putStrLn "\n[requesting price ...]"
+    putStrLn "[requesting price ...]"
     reqPrice st name
     p <- priceInfo st
     putStrLn $ "[received price info; the price is: " ++ cast p ++ " ...]"
@@ -34,15 +34,15 @@ mutual
     decision <- getStr
     case decision of 
       "Accept" => do
-        putStrLn "\n[letting the seller know you've accepted ...]"
+        putStrLn "[letting the seller know you've accepted ...]"
         choice_C0 st Accept
-        putStrLn "\nPress [ENTER] to request bank transfer: "
+        putStrLn "Press [ENTER] to request bank transfer: "
         getStr
         reqTransfer st (p ** Refl)
-        putStrLn "\n[DONE]"
+        putStrLn "[DONE]"
         done st
       _ => do
-        putStrLn "\n[letting the seller know you've rejected ...]"
+        putStrLn "[letting the seller know you've rejected ...]"
         choice_C0 st Reject
         rec_protocol st
 

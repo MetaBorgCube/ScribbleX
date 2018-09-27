@@ -17,7 +17,7 @@ failure {t = t} s =
   (>>=) {a = t} (lift (raise s)) (\_ => failure s)) -- hack!
 
 sellerPort : Int
-sellerPort = 9444
+sellerPort = 9445
 
 bankPort : Int
 bankPort = 9443

@@ -27,7 +27,7 @@ mutual
     putStrLn "[customer connected! waiting for product price request ...]"
     name <- reqPrice st
     putStrLn $ "[received price request for: \"" ++ name ++ "\" ...]"
-    (let p = (if name == "plumbus" 
+    (let p = (if name == "Plumbus" 
               then 60 
               else 5) in do
       putStrLn $ "[sending price info amount " ++ cast p ++ " ...]"
@@ -41,6 +41,7 @@ mutual
         Accept => do
           putStrLn $ "[customer accepted! waiting for bank acknowledgement of transfer ...]"
           ackTransfer st
+          putStrLn "[received acknowledgement]"
           putStrLn "[DONE]"
           done st)
 
