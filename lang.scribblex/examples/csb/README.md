@@ -1,8 +1,8 @@
 Compiling
----------
+=========
 
 Prerequisites: 
-==============
+--------------
 
 Please ensure you have the following installed on your machine:
 - [Idris 1.3.0](https://www.idris-lang.org/)
@@ -11,6 +11,8 @@ Please ensure you have the following installed on your machine:
 Follow these steps to compile the protocol:
 1. Generate the Idris interfaces for each of the actors
 2. `make`
+
+### 1. Generating the Idris interfaces for each of the actors
 
 To generate the interfaces for each of the actors, follow the steps below:
 - Open Spoofax
@@ -28,10 +30,12 @@ After following these steps, 6 files should now have appeared:
 5. `csb_S.scrx`
 6. `csb_S.idr`
 
+### 2. Compiling the protocol implementations using Idris
+
 Running `make` from the command line will compile the Idris protocols for each of the three actors in the `csb.scrx` specification.
 
 Running
--------
+=======
 
 After compiling (see above), three binaries should have appeared:
 1. `bank`
