@@ -1,0 +1,22 @@
+module RecGame;
+
+import <idris> Aux;
+type <idris> Lt arity 2;
+type <idris> Zero arity 0;
+
+global protocol RecGame(role Alice, role Bob, role Carol) {
+  init1(y : Int, Lt(Zero(), y)) from Carol to Alice;
+  init2(y) from Carol to Bob;
+  rec r {
+    guess1(Int) from Alice to Carol;
+    guess2(Int) from Bob to Carol;
+    choice at Carol {
+      correct() from Carol to Alice;
+      correct() from Carol to Bob;
+    } or {
+      wrong() from Carol to Alice;
+      wrong() from Carol to Bob;
+      continue r;
+    }
+  }
+}

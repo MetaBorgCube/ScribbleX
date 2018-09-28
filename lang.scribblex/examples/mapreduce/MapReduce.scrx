@@ -12,11 +12,11 @@ global protocol MapReduce(role Client,
                           role Worker2,
                           role Aggregator) {
   payload(d : String) from Client to Server;
-  payload1(d1 : String) from Server to Worker1;
-  payload2(d2 : String) from Server to Worker2;
-  aggr(Append(d1, d2)) from Server to Aggregator;
-  work1(r1 : String, Eq(r1, F(d1))) from Worker1 to Aggregator;
-  work2(r2 : String, Eq(r2, F(d2))) from Worker2 to Aggregator;
-  wrapUp(r3 : String, Eq(r3, G(r1, r2))) from Aggregator to Server;
-  notify(r3) from Server to Client;
+  map1(d1 : String) from Server to Worker1;
+  map2(d2 : String) from Server to Worker2;
+  division(Append(d1, d2)) from Server to Aggregator;
+  result1(r1 : String, Eq(r1, F(d1))) from Worker1 to Aggregator;
+  result2(r2 : String, Eq(r2, F(d2))) from Worker2 to Aggregator;
+  reduce(r3 : String, Eq(r3, G(r1, r2))) from Aggregator to Server;
+  result(r3) from Server to Client;
 }

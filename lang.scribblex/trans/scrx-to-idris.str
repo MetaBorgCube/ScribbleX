@@ -224,7 +224,13 @@ rules
                    <trans-snd-payload> (pl, <concat> [ctx, ctx'], ctx_td) \ }); rev>
         (payload, ([], []))
 
-  trans-interaction: // FIXME: handle case where interaction branches are none
+  trans-interaction:
+    (pname,
+     Choice(role, None(), or-choices),
+     ctx, rctx, ctx_td, signatures, states, choices, prev-state) ->
+      <err-msg(|"Could not generate choice with an empty branch"); fail> ()
+
+  trans-interaction:
     (pname,
      Choice(role, Some(interaction), or-choices),
      ctx, rctx, ctx_td, signatures, states, choices, prev-state) ->
@@ -240,18 +246,7 @@ rules
            ctx, rctx, ctx_td, signatures, states, choices, prev-state)
     ; (signatures1, states1, choices1, new-states) :=
         <foldr(!(signatures0, states0, choices0, <unpack-opt-new-state> opt-new-state0),
-          { signatures'', states'', choices'', opt-new-state'' :
-          \ (Or(Some(i)), (signatures', states', choices', new-states')) ->
-              (<conc> (signatures', signatures''),
-               <conc> (states', states''),
-               <conc> (choices', choices''),
-               <conc> (new-states', <unpack-opt-new-state> opt-new-state''))
-            where
-              (signatures'', states'', choices'', opt-new-state'') :=
-                <trans-branch>
-                  (pname,
-                   i,
-                   ctx, rctx, ctx_td, signatures, states, choices, prev-state) \ })>
+          gen-or-branch(|pname, ctx, rctx, ctx_td, signatures, states, choices, prev-state))>
           or-choices
     ; sig-name-base := <concat-strings> ["choice_", role]
     ; postfix := <get-counter; int-to-string> sig-name-base
@@ -262,6 +257,24 @@ rules
         <local-gen-choice-sig>
           (sig-name, choice-name, new-states,
            <new-choice> (choice-name, new-states), prev-state)
+
+  gen-or-branch(|pname, ctx, rctx, ctx_td, signatures, states, choices, prev-state):
+    (Or(None()), (signatures', states', choices', new-states')) ->
+      <err-msg(|"Could not generate choice with empty branch");
+       fail> ()
+
+  gen-or-branch(|pname, ctx, rctx, ctx_td, signatures, states, choices, prev-state):
+    (Or(Some(i)), (signatures', states', choices', new-states')) ->
+      (<conc> (signatures', signatures''),
+       <conc> (states', states''),
+       <conc> (choices', choices''),
+       <conc> (new-states', <unpack-opt-new-state> opt-new-state''))
+    where
+      (signatures'', states'', choices'', opt-new-state'') :=
+        <trans-branch>
+          (pname,
+           i,
+           ctx, rctx, ctx_td, signatures, states, choices, prev-state)
 
   local-gen-choice-sig:
     (sig-name, choice-name, new-states@[(msg, new-state, tys)], _, prev-state) ->
@@ -308,18 +321,7 @@ rules
            ctx, rctx, ctx_td, signatures, states, choices, prev-state)
     ; (signatures1, states1, choices1, new-states) :=
         <foldr(!(signatures0, states0, choices0, <unpack-opt-new-state> opt-new-state0),
-          { signatures'', states'', choices'', opt-new-state'' :
-          \ (Or(Some(i)), (signatures', states', choices', new-states')) ->
-              (<conc> (signatures'', signatures'),
-               <conc> (states', states''),
-               <conc> (choices', choices''),
-               <conc> (new-states', <unpack-opt-new-state> opt-new-state''))
-            where
-              (signatures'', states'', choices'', opt-new-state'') :=
-                <trans-branch>
-                  (pname,
-                   i,
-                   ctx, rctx, ctx_td, signatures, states, choices, prev-state) \ })>
+            gen-or-branch(|pname, ctx, rctx, ctx_td, signatures, states, choices, prev-state))>
           or-choices
     ; sig-name-base := <concat-strings> ["choice_", role]
     ; postfix := <get-counter; int-to-string> sig-name-base
@@ -530,7 +532,7 @@ rules // Constructor typing
       Id(x)
     where
       (  (arity := <lookup> (x, ctx_td))
-      <+ (err-msg(|<concat-strings> ["Undeclared type constructor: ", x])))
+      <+ (err-msg(|<concat-strings> ["Undeclared type constructor: ", x]); fail))
     ; (  <eq> ("0", arity)
       <+ (err-msg(|<concat-strings>
            ["Type constructor ", x,
@@ -545,7 +547,7 @@ rules // Constructor typing
           ts)
     where
       (  (arity := <lookup> (x, ctx_td))
-      <+ (err-msg(|<concat-strings> ["Undeclared type constructor: ", x])))
+      <+ (err-msg(|<concat-strings> ["Undeclared type constructor: ", x]); fail))
     ; actual := <length; int-to-string> [t|ts]
     ; (  <eq> (actual, arity)
       <+ (err-msg(|<concat-strings>

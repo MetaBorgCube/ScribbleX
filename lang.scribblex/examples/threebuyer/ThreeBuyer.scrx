@@ -1,0 +1,24 @@
+module ThreeBuyer;
+
+import <idris> Aux;
+type <idris> Pair arity 2;
+type <idris> Proj1 arity 1;
+type <idris> Proj2 arity 1;
+type <idris> Lte  arity 2;
+
+global protocol ThreeBuyer(role Buyer, role Seller, role Distr) {
+  query(String) from Buyer to Distr;
+  stock(s : Int) from Distr to Seller;
+  init(p : Pair(s, Int)) from Seller to Buyer;
+  choice at Buyer {
+    ok() from Buyer to Seller;
+    offer(n : Int, Lte(Proj2(p), n)) from Buyer to Seller;
+    choice at Seller {
+      sell() from Seller to Buyer;
+    } or {
+      exit() from Seller to Buyer;
+    }
+  } or {
+    quit() from Buyer to Seller;
+  }
+}

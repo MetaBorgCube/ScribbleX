@@ -34,11 +34,9 @@ rules
     (Choice(role, interaction, ors), psi) ->
       Choice(role, interaction', ors')
     where
-      rs0          := <roles-of> interaction
-    ; rsi          := <foldr(![], \ (Or(i), rs_acc) -> <conc> (<roles-of> i, rs_acc) \)> ors
-    ; rs           := <conc; remove-all(?role); make-set> (rs0, rsi)
-    ; interaction' := <add-broadcast(|0)> (role, <lower> (interaction, psi), rs)
-    ; (_, ors')    := <foldr(!(1, []), \ (Or(i), (n, acc)) -> (<inc> n, [Or(<add-broadcast(|n)> (role, <lower> (i, psi), rs))|acc]) \)> ors
+      interaction' := <lower> (interaction, psi)
+    ; ors'         := <map(\ Or(i) -> Or(<lower> (i, psi)) \)> ors
+//    ; (_, ors')    := <foldr(!(1, []), \ (Or(i), acc) -> ([Or(<lower-opt> (i, psi))|acc]) \)> ors
   
   lower:
     (Rec(x, interaction), psi) ->
